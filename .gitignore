@@ -208,3 +208,6 @@ __marimo__/
 
 # Example JAR files
 examples/*.jar
+
+# Decompiled class cache directories
+easy-jar-reader/
