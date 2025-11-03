@@ -82,7 +82,10 @@ class EasyJarReaderServer:
         # 初始化 Java 反编译器
         logger.info("正在初始化 Java 反编译器...")
         self.decompiler = JavaDecompiler()
-        logger.info(f"可用的反编译器: {list(self.decompiler.available_decompilers.keys())}")
+        if self.decompiler.fernflower_jar:
+            logger.info(f"Fernflower 反编译器已就绪")
+        else:
+            logger.warning("Fernflower 反编译器不可用")
         
         # 初始化响应管理器
         self.response_manager = ResponseManager()
@@ -221,8 +224,7 @@ class EasyJarReaderServer:
                 "source": "decompiled",
                 "class_name": class_name,
                 "artifact": f"{group_id}:{artifact_id}:{version}",
-                "code": decompiled_code or "反编译失败",
-                "available_decompilers": list(self.decompiler.available_decompilers.keys())
+                "code": decompiled_code or "反编译失败"
             }
             
             if summarize_large_content and decompiled_code and self.response_manager.should_summarize(result["code"]):

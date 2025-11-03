@@ -165,5 +165,55 @@ def test_config_maven_home():
     Config.set_maven_home(str(original_maven_home))
 
 
+@pytest.mark.asyncio
+async def test_decompiler_caching(tmp_path):
+    """Test decompiler caching mechanism"""
+    # Create a temporary Maven repository
+    maven_repo = tmp_path / "maven_repo"
+    maven_repo.mkdir()
+    
+    # Create test dependency
+    artifact_path = maven_repo / "com" / "example" / "cached" / "1.0.0"
+    artifact_path.mkdir(parents=True)
+    
+    # Create a JAR file (no sources)
+    jar_file = artifact_path / "cached-1.0.0.jar"
+    with zipfile.ZipFile(jar_file, 'w', zipfile.ZIP_DEFLATED) as jar:
+        manifest = "Manifest-Version: 1.0\n"
+        jar.writestr("META-INF/MANIFEST.MF", manifest)
+        
+        # Add a class file
+        class_bytes = bytes([
+            0xCA, 0xFE, 0xBA, 0xBE,  # Magic number
+            0x00, 0x00,               # Minor version
+            0x00, 0x34,               # Major version 52 (Java 8)
+        ]) + b'\x00' * 100
+        jar.writestr("com/example/TestClass.class", class_bytes)
+    
+    # Create cache directory and file (simulate already decompiled situation)
+    cache_dir = artifact_path / "easy-jar-reader" / "cached-1.0.0" / "com" / "example"
+    cache_dir.mkdir(parents=True)
+    cached_file = cache_dir / "TestClass.java"
+    cached_content = """package com.example;
+
+public class TestClass {
+    // This is from cache
+}
+"""
+    cached_file.write_text(cached_content)
+    
+    # Initialize server and attempt decompilation
+    server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
+    
+    # Call decompilation (should read from cache)
+    decompiled_code = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
+    
+    # Verify that cached content is returned
+    assert decompiled_code is not None
+    assert "This is from cache" in decompiled_code
+    # Cache file should still exist
+    assert cached_file.exists()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

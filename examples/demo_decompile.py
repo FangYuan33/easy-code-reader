@@ -100,7 +100,10 @@ async def demo_decompilation():
     # 初始化服务器
     print("2. 初始化 Easy JAR Reader 服务器...")
     server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
-    print(f"   可用的反编译器: {list(server.decompiler.available_decompilers.keys())}")
+    if server.decompiler.fernflower_jar:
+        print(f"   Fernflower 反编译器已就绪")
+    else:
+        print(f"   警告: Fernflower 反编译器不可用")
     print()
     
     # 尝试读取源代码（将使用反编译）
@@ -122,9 +125,6 @@ async def demo_decompilation():
     print(f"   源码来源: {response_data['source']}")
     print(f"   类名: {response_data['class_name']}")
     print(f"   依赖: {response_data['artifact']}")
-    
-    if 'available_decompilers' in response_data:
-        print(f"   可用的反编译器: {response_data['available_decompilers']}")
     
     print()
     print("   反编译代码:")
