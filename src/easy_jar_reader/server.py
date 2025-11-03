@@ -31,10 +31,20 @@ from .config import Config
 from .decompiler import JavaDecompiler
 from .response_manager import ResponseManager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("easy-jar-reader")
-
+# 配置日志系统
+import os
+log_file = os.path.join(os.path.dirname(__file__), "easy_jar_reader.log")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        # 写入日志文件
+        logging.FileHandler(log_file),
+        # 同时输出到控制台（非 MCP 服务器模式时）
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 class EasyJarReaderServer:
     """

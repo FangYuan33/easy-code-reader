@@ -14,7 +14,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class JavaDecompiler:
     """
     Java 字节码反编译器
@@ -45,7 +44,20 @@ class JavaDecompiler:
             字典，键为反编译器名称，值为可执行文件路径
         """
         decompilers = {}
-        
+
+        # 检查 Fernflower
+        try:
+            fernflower_paths = ['fernflower.jar', 'decompilers/fernflower.jar']
+            for fernflower_path in fernflower_paths:
+                if Path(fernflower_path).exists():
+                    result = subprocess.run(['java', '-jar', fernflower_path],
+                                            capture_output=True, text=True, timeout=5)
+                    decompilers['fernflower'] = fernflower_path
+                    logger.info(f"Found Fernflower decompiler at {fernflower_path}")
+                    break
+        except Exception as e:
+            logger.debug(f"Fernflower detection failed: {e}")
+
         # 检查 CFR
         try:
             cfr_paths = ['cfr.jar', 'decompilers/cfr.jar']
@@ -59,17 +71,6 @@ class JavaDecompiler:
                         break
         except Exception as e:
             logger.debug(f"CFR detection failed: {e}")
-        
-        # 检查 Fernflower
-        try:
-            fernflower_paths = ['fernflower.jar', 'decompilers/fernflower.jar']
-            for fernflower_path in fernflower_paths:
-                if Path(fernflower_path).exists():
-                    decompilers['fernflower'] = fernflower_path
-                    logger.info(f"Found Fernflower decompiler at {fernflower_path}")
-                    break
-        except Exception as e:
-            logger.debug(f"Fernflower detection failed: {e}")
         
         # 检查 Procyon
         try:

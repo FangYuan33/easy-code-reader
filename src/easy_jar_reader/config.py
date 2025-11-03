@@ -34,7 +34,7 @@ class Config:
     
     # 反编译器设置
     DECOMPILER_TIMEOUT: int = 30  # 反编译超时时间（秒）
-    DECOMPILER_PRIORITY: list = ["cfr", "procyon", "fernflower", "javap"]  # 反编译器优先级
+    DECOMPILER_PRIORITY: list = ["fernflower", "cfr", "procyon", "javap"]  # 反编译器优先级
     
     # 响应管理器配置
     MAX_RESPONSE_SIZE: int = int(os.getenv('MCP_MAX_RESPONSE_SIZE', '50000'))
