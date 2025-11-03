@@ -103,6 +103,11 @@ class JavaDecompiler:
             return self._fallback_class_info(jar_path, class_name)
         
         # 执行 Fernflower 反编译
+        # 注意：Fernflower 只支持反编译整个 JAR，不支持单个 class 文件
+        # 但这是可接受的，因为：
+        # 1. 反编译后的所有类都会被缓存
+        # 2. 后续访问该 JAR 中的任何类都会直接从缓存读取
+        # 3. 避免了对同一 JAR 的重复反编译操作
         try:
             logger.info(f"使用 Fernflower 反编译 JAR: {jar_path}")
             result = subprocess.run([
@@ -117,12 +122,19 @@ class JavaDecompiler:
             # Fernflower 会将输出放在一个与原 jar 同名的 jar 中
             # 需要解压该 jar 文件
             decompiled_jar = output_dir / jar_path.name
-            if decompiled_jar.exists():
+            if not decompiled_jar.exists():
+                logger.error(f"Fernflower 未生成预期的 JAR 文件: {decompiled_jar}")
+                return self._fallback_class_info(jar_path, class_name)
+            
+            try:
                 logger.info(f"解压反编译后的 JAR: {decompiled_jar}")
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
                     zf.extractall(output_dir)
                 # 删除解压后的 jar 文件
                 decompiled_jar.unlink()
+            except zipfile.BadZipFile as e:
+                logger.error(f"反编译后的 JAR 文件损坏: {e}")
+                return self._fallback_class_info(jar_path, class_name)
             
             # 读取反编译后的 Java 文件
             if java_file_path.exists():
