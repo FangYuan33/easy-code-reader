@@ -13,10 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from easy_jar_reader.server import (
-    list_jar_contents,
-    read_jar_file,
-    get_jar_manifest,
-    extract_class_info
+    read_jar_file
 )
 
 
@@ -33,20 +30,6 @@ async def main():
     print("=" * 80)
     print(f"\nUsing sample JAR: {sample_jar}\n")
     
-    # Test 1: List JAR contents
-    print("Test 1: Listing JAR contents")
-    print("-" * 80)
-    result = await list_jar_contents({"jar_path": str(sample_jar)})
-    print(result[0].text)
-    print()
-    
-    # Test 2: Get manifest
-    print("Test 2: Reading JAR manifest")
-    print("-" * 80)
-    result = await get_jar_manifest({"jar_path": str(sample_jar)})
-    print(result[0].text)
-    print()
-    
     # Test 3: Read a text file
     print("Test 3: Reading README.txt from JAR")
     print("-" * 80)
@@ -57,14 +40,7 @@ async def main():
     })
     print(result[0].text)
     print()
-    
-    # Test 4: Extract class info
-    print("Test 4: Extracting class file information")
-    print("-" * 80)
-    result = await extract_class_info({
-        "jar_path": str(sample_jar),
-        "class_path": "com/example/Main.class"
-    })
+
     print(result[0].text)
     print()
     
