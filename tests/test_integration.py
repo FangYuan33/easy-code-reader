@@ -167,22 +167,22 @@ def test_config_maven_home():
 
 @pytest.mark.asyncio
 async def test_decompiler_caching(tmp_path):
-    """测试反编译缓存机制"""
-    # 创建一个临时 Maven 仓库
+    """Test decompiler caching mechanism"""
+    # Create a temporary Maven repository
     maven_repo = tmp_path / "maven_repo"
     maven_repo.mkdir()
     
-    # 创建测试依赖
+    # Create test dependency
     artifact_path = maven_repo / "com" / "example" / "cached" / "1.0.0"
     artifact_path.mkdir(parents=True)
     
-    # 创建一个 JAR 文件（无 sources）
+    # Create a JAR file (no sources)
     jar_file = artifact_path / "cached-1.0.0.jar"
     with zipfile.ZipFile(jar_file, 'w', zipfile.ZIP_DEFLATED) as jar:
         manifest = "Manifest-Version: 1.0\n"
         jar.writestr("META-INF/MANIFEST.MF", manifest)
         
-        # 添加一个类文件
+        # Add a class file
         class_bytes = bytes([
             0xCA, 0xFE, 0xBA, 0xBE,  # Magic number
             0x00, 0x00,               # Minor version
@@ -190,7 +190,7 @@ async def test_decompiler_caching(tmp_path):
         ]) + b'\x00' * 100
         jar.writestr("com/example/TestClass.class", class_bytes)
     
-    # 创建缓存目录和文件（模拟已反编译的情况）
+    # Create cache directory and file (simulate already decompiled situation)
     cache_dir = artifact_path / "easy-jar-reader" / "cached-1.0.0" / "com" / "example"
     cache_dir.mkdir(parents=True)
     cached_file = cache_dir / "TestClass.java"
@@ -202,16 +202,17 @@ public class TestClass {
 """
     cached_file.write_text(cached_content)
     
-    # 初始化服务器并尝试反编译
+    # Initialize server and attempt decompilation
     server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
     
-    # 调用反编译（应该从缓存读取）
+    # Call decompilation (should read from cache)
     decompiled_code = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
     
-    # 验证返回的是缓存的内容
+    # Verify that cached content is returned
     assert decompiled_code is not None
     assert "This is from cache" in decompiled_code
-    assert cached_file.exists()  # 缓存文件应该仍然存在
+    # Cache file should still exist
+    assert cached_file.exists()
 
 
 if __name__ == "__main__":
