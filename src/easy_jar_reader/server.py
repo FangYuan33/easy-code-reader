@@ -18,7 +18,6 @@ Example usage with MCP client:
 import asyncio
 import json
 import logging
-import os
 import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
@@ -135,7 +134,7 @@ class EasyJarReaderServer:
                             },
                             "max_lines": {
                                 "type": "integer", 
-                                "default": 500,
+                                "default": 0,
                                 "description": "返回的最大行数（0 表示全部）"
                             }
                         },

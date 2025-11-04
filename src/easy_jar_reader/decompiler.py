@@ -6,7 +6,6 @@ Java 反编译器集成模块 - Easy JAR Reader MCP 服务器
 
 import subprocess
 import zipfile
-import os
 from pathlib import Path
 from typing import Optional
 import logging
@@ -27,12 +26,8 @@ class JavaDecompiler:
         检测 Fernflower 反编译器是否可用。
         """
         self.fernflower_jar = self._detect_fernflower()
-        if self.fernflower_jar:
-            logger.info(f"找到 Fernflower 反编译器: {self.fernflower_jar}")
-        else:
-            logger.warning("未找到 Fernflower 反编译器")
     
-    def _detect_fernflower(self) -> Optional[str]:
+    def _detect_fernflower(self) -> Path | None:
         """
         检测 Fernflower 反编译器
         
@@ -43,13 +38,16 @@ class JavaDecompiler:
         """
         # 检查 Fernflower
         try:
-            fernflower_paths = ['fernflower.jar', 'decompilers/fernflower.jar']
-            for fernflower_path in fernflower_paths:
-                if Path(fernflower_path).exists():
-                    result = subprocess.run(['java', '-jar', fernflower_path],
-                                            capture_output=True, text=True, timeout=5)
-                    logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
-                    return fernflower_path
+            # 获取当前模块文件的目录
+            current_module_dir = Path(__file__).parent
+
+            # 从 src/easy_jar_reader/ 向上两级到项目根目录，然后找 decompilers/
+            project_root = current_module_dir.parent.parent
+            fernflower_path = project_root / "decompilers" / "fernflower.jar"
+
+            if Path(fernflower_path).exists():
+                logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
+                return fernflower_path
         except Exception as e:
             logger.debug(f"Fernflower 检测失败: {e}")
         
