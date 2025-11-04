@@ -190,17 +190,20 @@ async def test_decompiler_caching(tmp_path):
         ]) + b'\x00' * 100
         jar.writestr("com/example/TestClass.class", class_bytes)
     
-    # Create cache directory and file (simulate already decompiled situation)
-    cache_dir = artifact_path / "easy-jar-reader" / "cached-1.0.0" / "com" / "example"
+    # Create cache directory and decompiled JAR (simulate already decompiled situation)
+    cache_dir = artifact_path / "easy-jar-reader" / "cached-1.0.0"
     cache_dir.mkdir(parents=True)
-    cached_file = cache_dir / "TestClass.java"
+    
+    # Create a decompiled JAR with .java source
+    cached_jar = cache_dir / "cached-1.0.0.jar"
     cached_content = """package com.example;
 
 public class TestClass {
     // This is from cache
 }
 """
-    cached_file.write_text(cached_content)
+    with zipfile.ZipFile(cached_jar, 'w') as zf:
+        zf.writestr("com/example/TestClass.java", cached_content)
     
     # Initialize server and attempt decompilation
     server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
@@ -211,8 +214,8 @@ public class TestClass {
     # Verify that cached content is returned
     assert decompiled_code is not None
     assert "This is from cache" in decompiled_code
-    # Cache file should still exist
-    assert cached_file.exists()
+    # Cache JAR should still exist
+    assert cached_jar.exists()
 
 
 if __name__ == "__main__":
