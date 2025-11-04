@@ -79,8 +79,7 @@ class JavaDecompiler:
         output_base_dir = jar_dir / "easy-jar-reader"
         
         # 从 jar 文件名中提取名称（不包含扩展名）作为子目录
-        jar_name = jar_path.stem
-        output_dir = output_base_dir / jar_name
+        output_dir = output_base_dir
         
         # 定义反编译后的 JAR 路径和类文件在 JAR 中的路径
         decompiled_jar = output_dir / jar_path.name
