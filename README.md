@@ -112,8 +112,6 @@ pip install -e ".[dev]"
 
 ## 使用方法
 
-## 使用方法
-
 ### 快速开始（使用 uvx - 推荐）
 
 使用 `uvx` 可以直接运行 Easy JAR Reader，无需手动安装：
