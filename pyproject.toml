@@ -1,25 +1,73 @@
 [project]
 name = "easy-jar-reader"
 version = "0.1.0"
-description = "MCP Server for decoding and reading JAR source code"
-authors = [
-    {name = "FangYuan33"}
-]
+description = "MCP Server for reading Java source code from Maven JAR files with decompilation support"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "FangYuan33", email = "fangyuan33@example.com"}
+]
+maintainers = [
+    {name = "FangYuan33", email = "fangyuan33@example.com"}
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "maven",
+    "jar",
+    "java",
+    "decompiler",
+    "source-code",
+    "fernflower",
+    "claude",
+    "ai-tools"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Java",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+]
 dependencies = [
     "mcp>=0.9.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/FangYuan33/easy-jar-reader"
+Documentation = "https://github.com/FangYuan33/easy-jar-reader#readme"
+Repository = "https://github.com/FangYuan33/easy-jar-reader.git"
+Issues = "https://github.com/FangYuan33/easy-jar-reader/issues"
+Changelog = "https://github.com/FangYuan33/easy-jar-reader/releases"
+
+[project.scripts]
+easy-jar-reader = "easy_jar_reader.__main__:main"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
 ]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["easy_jar_reader"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+easy_jar_reader = ["py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

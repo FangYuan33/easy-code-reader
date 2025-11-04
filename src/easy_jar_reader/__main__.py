@@ -2,7 +2,7 @@
 
 import argparse
 import asyncio
-from .server import main
+from .server import main as server_main
 
 
 def parse_args():
@@ -19,6 +19,11 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
+    """主入口函数，用于 uvx 和直接运行"""
     args = parse_args()
-    asyncio.run(main(maven_repo_path=args.maven_repo))
+    asyncio.run(server_main(maven_repo_path=args.maven_repo))
+
+
+if __name__ == "__main__":
+    main()

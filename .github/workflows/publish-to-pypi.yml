@@ -1,0 +1,117 @@
+name: Publish to PyPI
+
+on:
+  # 触发方式 1: 创建新的 GitHub Release 时自动发布
+  release:
+    types: [published]
+  
+  # 触发方式 2: 手动触发工作流
+  workflow_dispatch:
+    inputs:
+      test_pypi:
+        description: '发布到测试 PyPI'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-and-publish:
+    name: 构建并发布 Python 包
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史，用于版本标签
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: 显示 Python 版本
+      run: |
+        python --version
+        pip --version
+    
+    - name: 安装构建工具
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: 获取版本信息
+      id: get_version
+      run: |
+        VERSION=$(grep "^version = " pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "📦 版本号: $VERSION"
+    
+    - name: 清理旧的构建文件
+      run: |
+        rm -rf dist/ build/ *.egg-info src/*.egg-info
+    
+    - name: 构建包
+      run: |
+        python -m build
+        echo "✓ 构建完成"
+        echo "构建的文件:"
+        ls -lh dist/
+    
+    - name: 检查包
+      run: |
+        twine check dist/*
+        echo "✓ 包检查通过"
+    
+    - name: 发布到测试 PyPI
+      if: github.event.inputs.test_pypi == 'true'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        echo "📤 上传到测试 PyPI..."
+        twine upload --repository testpypi dist/*
+        echo "✓ 发布成功！"
+        echo "📦 包地址: https://test.pypi.org/project/easy-jar-reader/${{ steps.get_version.outputs.version }}/"
+    
+    - name: 发布到正式 PyPI
+      if: github.event.inputs.test_pypi != 'true'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "📤 上传到正式 PyPI..."
+        twine upload dist/*
+        echo "✓ 发布成功！🎉"
+        echo "📦 包地址: https://pypi.org/project/easy-jar-reader/${{ steps.get_version.outputs.version }}/"
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: 创建发布摘要
+      run: |
+        echo "## 🎉 发布成功！" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**版本:** ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**包名:** easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event.inputs.test_pypi }}" == "true" ]; then
+          echo "**仓库:** 测试 PyPI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 安装测试" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**仓库:** 正式 PyPI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 安装" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "pip install easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo "# 或" >> $GITHUB_STEP_SUMMARY
+          echo "uvx easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi

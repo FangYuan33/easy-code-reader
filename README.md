@@ -2,6 +2,16 @@
 
 一个用于从 Maven 依赖中读取 Java 源代码的 MCP (Model Context Protocol) 服务器。
 
+[![PyPI version](https://badge.fury.io/py/easy-jar-reader.svg)](https://badge.fury.io/py/easy-jar-reader)
+[![Python Version](https://img.shields.io/pypi/pyversions/easy-jar-reader)](https://pypi.org/project/easy-jar-reader/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+> **📢 发布状态**: 
+> - ✅ **已发布到 PyPI** - 可以直接使用 `uvx easy-jar-reader` 开箱即用
+> - 🔄 **未发布到 PyPI** - 需要先从 GitHub 安装（见下方说明）
+>
+> 请根据实际发布状态选择对应的安装方式。
+
 ## 功能特性
 
 - 📦 **从 Maven 仓库读取源代码**：自动从本地 Maven 仓库（`~/.m2/repository`）中查找和读取 JAR 包源代码
@@ -11,134 +21,174 @@
 - ⚙️ **自定义 Maven 路径**：支持配置自定义的 Maven 仓库路径
 - 📄 **智能内容管理**：自动摘要大型源文件，支持行数限制
 
-## 安装
-
-### 前置要求
+## 前置要求
 
 - Python 3.10 或更高版本
 - Java Development Kit (JDK) - 用于运行反编译器
-- Node.js 18.0.0 或更高版本（仅在使用 npm 安装时需要）
+- [uv](https://github.com/astral-sh/uv) - Python 包和项目管理工具（推荐）
 
-### 方法 1: 从 npm 安装（推荐）
+## 安装
 
-```bash
-# 全局安装
-npm install -g @fangyuan33/easy-jar-reader
+### ⚡ 方式 1: 使用 uvx（推荐 - 开箱即用）
 
-# 或者本地安装
-npm install @fangyuan33/easy-jar-reader
-```
+> **注意**: 此方式仅在包发布到 PyPI 后可用
 
-安装后，还需要安装 Python 依赖：
+[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行：
 
 ```bash
-# 进入包安装目录
-cd $(npm root -g)/@fangyuan33/easy-jar-reader  # 全局安装
-# 或
-cd node_modules/@fangyuan33/easy-jar-reader    # 本地安装
+# 无需安装，直接运行
+uvx easy-jar-reader
 
-# 安装 Python 依赖
-pip install -e .
+# 或指定自定义 Maven 仓库
+uvx easy-jar-reader --maven-repo /path/to/maven/repository
 ```
 
-### 方法 2: 从源码安装
+#### 首次使用 uv？
+
+如果您还没有安装 uv，可以通过以下方式快速安装：
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 或使用 pip
+pip install uv
+```
+
+### 📦 方式 2: 从 PyPI 安装
+
+> **注意**: 此方式仅在包发布到 PyPI 后可用
+
+```bash
+# 使用 uv 安装（推荐）
+uv pip install easy-jar-reader
+
+# 或使用 pip 安装
+pip install easy-jar-reader
+```
+
+安装后可以直接运行：
+
+```bash
+easy-jar-reader
+easy-jar-reader --maven-repo /path/to/maven/repository
+```
+
+### 🔧 方式 3: 从 GitHub 安装（当前可用）
+
+在包发布到 PyPI 之前，或者您想使用最新开发版本，可以从 GitHub 安装：
+
+```bash
+# 使用 uv 安装
+uv pip install git+https://github.com/FangYuan33/easy-jar-reader.git
+
+# 或使用 pip 安装
+pip install git+https://github.com/FangYuan33/easy-jar-reader.git
+```
+
+### 🛠️ 方式 4: 本地开发安装
+
+克隆仓库并以开发模式安装：
 
 ```bash
 # 克隆仓库
 git clone https://github.com/FangYuan33/easy-jar-reader.git
 cd easy-jar-reader
 
-# 安装 Python 依赖
+# 使用 uv 安装
+uv pip install -e .
+
+# 或使用 pip 安装
 pip install -e .
 
 # 开发模式安装（包含测试工具）
-pip install -e .[dev]
+uv pip install -e ".[dev]"
+# 或
+pip install -e ".[dev]"
 ```
 
 ## 使用方法
 
-### 启动方式 1: 使用 Python 命令直接启动
+## 使用方法
 
-Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户端（如 Claude Desktop）集成。
+### 快速开始（使用 uvx - 推荐）
 
-#### 基本用法
+使用 `uvx` 可以直接运行 Easy JAR Reader，无需手动安装：
 
 ```bash
 # 使用默认 Maven 仓库路径 (~/.m2/repository)
-python -m easy_jar_reader
-```
+uvx easy-jar-reader
 
-#### 自定义 Maven 仓库路径
-
-```bash
 # 指定自定义 Maven 仓库路径
-python -m easy_jar_reader --maven-repo /path/to/your/maven/repository
+uvx easy-jar-reader --maven-repo /path/to/your/maven/repository
+
+# 查看帮助信息
+uvx easy-jar-reader --help
 ```
 
-#### 查看帮助信息
+### 使用已安装的包
+
+如果您已经通过 pip 或 uv 安装了包，可以直接运行：
 
 ```bash
-python -m easy_jar_reader --help
-```
-
-### 启动方式 2: 使用 npm 命令启动
-
-如果你通过 npm 安装了此包，可以使用 `easy-jar-reader` 命令启动：
-
-#### 基本用法
-
-```bash
-# 全局安装后
+# 使用默认 Maven 仓库路径
 easy-jar-reader
 
-# 本地安装后
-npx easy-jar-reader
-```
-
-#### 自定义 Maven 仓库路径
-
-```bash
-# 全局安装后
+# 指定自定义 Maven 仓库路径
 easy-jar-reader --maven-repo /path/to/your/maven/repository
 
-# 本地安装后
-npx easy-jar-reader --maven-repo /path/to/your/maven/repository
-```
-
-#### 查看帮助信息
-
-```bash
-# 全局安装后
-easy-jar-reader --help
-
-# 本地安装后
-npx easy-jar-reader --help
+# 或使用 Python 模块方式运行
+python -m easy_jar_reader
+python -m easy_jar_reader --maven-repo /path/to/your/maven/repository
 ```
 
 ### 在 MCP 客户端中配置
 
-#### Claude Desktop 配置示例
+Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户端（如 Claude Desktop）集成。
+
+#### Claude Desktop 配置
 
 编辑 Claude Desktop 的配置文件：
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
-##### 使用 Python 命令启动：
+##### 方式 1：使用 uvx（推荐 - 开箱即用）
 
 ```json
 {
   "mcpServers": {
     "easy-jar-reader": {
-      "command": "python",
-      "args": ["-m", "easy_jar_reader"],
+      "command": "uvx",
+      "args": ["easy-jar-reader"],
       "env": {}
     }
   }
 }
 ```
 
-##### 使用 npm 全局安装后启动：
+##### 使用 uvx 并指定自定义 Maven 路径：
+
+```json
+{
+  "mcpServers": {
+    "easy-jar-reader": {
+      "command": "uvx",
+      "args": [
+        "easy-jar-reader",
+        "--maven-repo",
+        "/custom/path/to/maven/repository"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+##### 方式 2：使用已安装的包
 
 ```json
 {
@@ -152,21 +202,21 @@ npx easy-jar-reader --help
 }
 ```
 
-##### 使用 npx 启动（本地安装）：
+##### 方式 3：使用 Python 模块
 
 ```json
 {
   "mcpServers": {
     "easy-jar-reader": {
-      "command": "npx",
-      "args": ["-y", "@fangyuan33/easy-jar-reader"],
+      "command": "python",
+      "args": ["-m", "easy_jar_reader"],
       "env": {}
     }
   }
 }
 ```
 
-##### 使用自定义 Maven 路径：
+##### 指定自定义 Maven 路径（Python 模块方式）：
 
 ```json
 {
@@ -270,11 +320,9 @@ pytest tests/test_jar_reader.py -v
 
 ```
 easy-jar-reader/
-├── bin/                     # npm 命令行工具
-│   └── easy-jar-reader.js   # npm 启动脚本
 ├── src/easy_jar_reader/
 │   ├── __init__.py
-│   ├── __main__.py          # Python 入口点
+│   ├── __main__.py          # 程序入口点
 │   ├── server.py            # MCP 服务器实现
 │   ├── config.py            # 配置管理
 │   ├── decompiler.py        # 反编译器集成
@@ -282,8 +330,8 @@ easy-jar-reader/
 ├── decompilers/             # 反编译器 JAR 文件
 │   └── fernflower.jar       # Fernflower 反编译器
 ├── tests/                   # 测试文件
-├── package.json             # npm 包配置
 ├── pyproject.toml           # Python 项目配置
+├── requirements.txt         # Python 依赖
 └── README.md                # 本文档
 ```
 
