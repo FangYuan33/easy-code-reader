@@ -83,14 +83,21 @@ class JavaDecompiler:
         output_dir = output_base_dir / jar_name
         
         # 检查缓存：查看是否已经反编译过
-        java_file_path = output_dir / (class_name.replace('.', '/') + '.java')
-        if java_file_path.exists():
-            logger.info(f"从缓存读取已反编译的类: {java_file_path}")
+        # 反编译后的文件存储在一个与原 jar 同名的 jar 中
+        decompiled_jar = output_dir / jar_path.name
+        java_file_path_in_jar = class_name.replace('.', '/') + '.java'
+        
+        if decompiled_jar.exists():
+            logger.info(f"发现缓存的反编译 JAR: {decompiled_jar}")
             try:
-                with open(java_file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
+                with zipfile.ZipFile(decompiled_jar, 'r') as zf:
+                    if java_file_path_in_jar in zf.namelist():
+                        logger.info(f"从缓存 JAR 中读取已反编译的类: {java_file_path_in_jar}")
+                        return zf.read(java_file_path_in_jar).decode('utf-8')
+                    else:
+                        logger.warning(f"缓存 JAR 中未找到类文件: {java_file_path_in_jar}，将重新反编译")
             except Exception as e:
-                logger.warning(f"读取缓存文件失败: {e}，将重新反编译")
+                logger.warning(f"读取缓存 JAR 失败: {e}，将重新反编译")
         
         # 创建输出目录（如果不存在）
         try:
@@ -118,29 +125,26 @@ class JavaDecompiler:
                 return self._fallback_class_info(jar_path, class_name)
             
             # Fernflower 会将输出放在一个与原 jar 同名的 jar 中
-            # 需要解压该 jar 文件
+            # 直接从该 jar 文件中读取 .java 文件，无需解压
             decompiled_jar = output_dir / jar_path.name
             if not decompiled_jar.exists():
                 logger.error(f"Fernflower 未生成预期的 JAR 文件: {decompiled_jar}")
                 return self._fallback_class_info(jar_path, class_name)
             
             try:
-                logger.info(f"解压反编译后的 JAR: {decompiled_jar}")
+                logger.info(f"从反编译后的 JAR 中读取 .java 文件: {decompiled_jar}")
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
-                    zf.extractall(output_dir)
-                # 删除解压后的 jar 文件
-                decompiled_jar.unlink()
+                    if java_file_path_in_jar in zf.namelist():
+                        logger.info(f"成功反编译类: {class_name}")
+                        return zf.read(java_file_path_in_jar).decode('utf-8')
+                    else:
+                        logger.error(f"反编译后的 JAR 中未找到文件: {java_file_path_in_jar}")
+                        return self._fallback_class_info(jar_path, class_name)
             except zipfile.BadZipFile as e:
                 logger.error(f"反编译后的 JAR 文件损坏: {e}")
                 return self._fallback_class_info(jar_path, class_name)
-            
-            # 读取反编译后的 Java 文件
-            if java_file_path.exists():
-                logger.info(f"成功反编译类: {class_name}")
-                with open(java_file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-            else:
-                logger.error(f"未找到反编译后的文件: {java_file_path}")
+            except Exception as e:
+                logger.error(f"读取反编译后的 JAR 失败: {e}")
                 return self._fallback_class_info(jar_path, class_name)
                 
         except Exception as e:
