@@ -17,15 +17,38 @@
 
 - Python 3.10 或更高版本
 - Java Development Kit (JDK) - 用于运行反编译器
+- Node.js 18.0.0 或更高版本（仅在使用 npm 安装时需要）
 
-### 从源码安装
+### 方法 1: 从 npm 安装（推荐）
+
+```bash
+# 全局安装
+npm install -g @fangyuan33/easy-jar-reader
+
+# 或者本地安装
+npm install @fangyuan33/easy-jar-reader
+```
+
+安装后，还需要安装 Python 依赖：
+
+```bash
+# 进入包安装目录
+cd $(npm root -g)/@fangyuan33/easy-jar-reader  # 全局安装
+# 或
+cd node_modules/@fangyuan33/easy-jar-reader    # 本地安装
+
+# 安装 Python 依赖
+pip install -e .
+```
+
+### 方法 2: 从源码安装
 
 ```bash
 # 克隆仓库
 git clone https://github.com/FangYuan33/easy-jar-reader.git
 cd easy-jar-reader
 
-# 安装依赖
+# 安装 Python 依赖
 pip install -e .
 
 # 开发模式安装（包含测试工具）
@@ -34,29 +57,74 @@ pip install -e .[dev]
 
 ## 使用方法
 
-### 作为 MCP 服务器运行
+### 启动方式 1: 使用 Python 命令直接启动
 
 Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户端（如 Claude Desktop）集成。
 
-#### 1. 基本用法
+#### 基本用法
 
 ```bash
 # 使用默认 Maven 仓库路径 (~/.m2/repository)
 python -m easy_jar_reader
 ```
 
-#### 2. 自定义 Maven 仓库路径
+#### 自定义 Maven 仓库路径
 
 ```bash
 # 指定自定义 Maven 仓库路径
 python -m easy_jar_reader --maven-repo /path/to/your/maven/repository
 ```
 
+#### 查看帮助信息
+
+```bash
+python -m easy_jar_reader --help
+```
+
+### 启动方式 2: 使用 npm 命令启动
+
+如果你通过 npm 安装了此包，可以使用 `easy-jar-reader` 命令启动：
+
+#### 基本用法
+
+```bash
+# 全局安装后
+easy-jar-reader
+
+# 本地安装后
+npx easy-jar-reader
+```
+
+#### 自定义 Maven 仓库路径
+
+```bash
+# 全局安装后
+easy-jar-reader --maven-repo /path/to/your/maven/repository
+
+# 本地安装后
+npx easy-jar-reader --maven-repo /path/to/your/maven/repository
+```
+
+#### 查看帮助信息
+
+```bash
+# 全局安装后
+easy-jar-reader --help
+
+# 本地安装后
+npx easy-jar-reader --help
+```
+
 ### 在 MCP 客户端中配置
 
 #### Claude Desktop 配置示例
 
-编辑 Claude Desktop 的配置文件（通常在 `~/Library/Application Support/Claude/config.json`）：
+编辑 Claude Desktop 的配置文件：
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+##### 使用 Python 命令启动：
 
 ```json
 {
@@ -70,7 +138,35 @@ python -m easy_jar_reader --maven-repo /path/to/your/maven/repository
 }
 ```
 
-使用自定义 Maven 路径：
+##### 使用 npm 全局安装后启动：
+
+```json
+{
+  "mcpServers": {
+    "easy-jar-reader": {
+      "command": "easy-jar-reader",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
+##### 使用 npx 启动（本地安装）：
+
+```json
+{
+  "mcpServers": {
+    "easy-jar-reader": {
+      "command": "npx",
+      "args": ["-y", "@fangyuan33/easy-jar-reader"],
+      "env": {}
+    }
+  }
+}
+```
+
+##### 使用自定义 Maven 路径：
 
 ```json
 {
@@ -174,20 +270,21 @@ pytest tests/test_jar_reader.py -v
 
 ```
 easy-jar-reader/
+├── bin/                     # npm 命令行工具
+│   └── easy-jar-reader.js   # npm 启动脚本
 ├── src/easy_jar_reader/
 │   ├── __init__.py
-│   ├── __main__.py          # 入口点
+│   ├── __main__.py          # Python 入口点
 │   ├── server.py            # MCP 服务器实现
 │   ├── config.py            # 配置管理
 │   ├── decompiler.py        # 反编译器集成
 │   └── response_manager.py  # 响应管理器
 ├── decompilers/             # 反编译器 JAR 文件
-│   ├── cfr.jar
-│   ├── procyon-decompiler.jar
-│   └── fernflower.jar
+│   └── fernflower.jar       # Fernflower 反编译器
 ├── tests/                   # 测试文件
-├── pyproject.toml          # 项目配置
-└── README.md               # 本文档
+├── package.json             # npm 包配置
+├── pyproject.toml           # Python 项目配置
+└── README.md                # 本文档
 ```
 
 ## 许可证
