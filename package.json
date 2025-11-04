@@ -1,7 +1,7 @@
 {
   "name": "@fangyuan33/easy-jar-reader",
   "version": "0.1.0",
-  "description": "MCP Server for reading Java source code from Maven repository JAR files",
+  "description": "MCP Server for reading Java source code from Maven repository JAR files. Requires Python 3.10+ and Java 17+ (for Fernflower decompiler).",
   "type": "module",
   "bin": {
     "easy-jar-reader": "./bin/easy-jar-reader.js"
