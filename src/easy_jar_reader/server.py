@@ -172,6 +172,16 @@ class EasyJarReaderServer:
             summarize_large_content: 自动摘要大型内容
             max_lines: 最大行数（0 表示全部）
         """
+        # 输入验证
+        if not group_id or not group_id.strip():
+            return [TextContent(type="text", text="错误: group_id 不能为空")]
+        if not artifact_id or not artifact_id.strip():
+            return [TextContent(type="text", text="错误: artifact_id 不能为空")]
+        if not version or not version.strip():
+            return [TextContent(type="text", text="错误: version 不能为空")]
+        if not class_name or not class_name.strip():
+            return [TextContent(type="text", text="错误: class_name 不能为空")]
+        
         # 首先尝试从 sources jar 提取
         if prefer_sources:
             sources_jar = self._get_sources_jar_path(group_id, artifact_id, version)

@@ -191,7 +191,8 @@ async def test_decompiler_caching(tmp_path):
         jar.writestr("com/example/TestClass.class", class_bytes)
     
     # Create cache directory and decompiled JAR (simulate already decompiled situation)
-    cache_dir = artifact_path / "easy-jar-reader" / "cached-1.0.0"
+    # The cache directory structure should be: <jar-dir>/easy-jar-reader/<original-jar-name>.jar
+    cache_dir = artifact_path / "easy-jar-reader"
     cache_dir.mkdir(parents=True)
     
     # Create a decompiled JAR with .java source
@@ -216,6 +217,52 @@ public class TestClass {
     assert "This is from cache" in decompiled_code
     # Cache JAR should still exist
     assert cached_jar.exists()
+
+
+@pytest.mark.asyncio
+async def test_input_validation(mock_maven_repo):
+    """测试输入验证"""
+    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    
+    # 测试空 group_id
+    result = await server._read_jar_source(
+        group_id="",
+        artifact_id="test-lib",
+        version="1.0.0",
+        class_name="org.example.Main"
+    )
+    assert len(result) == 1
+    assert "group_id" in result[0].text
+    
+    # 测试空 artifact_id
+    result = await server._read_jar_source(
+        group_id="org.example",
+        artifact_id="",
+        version="1.0.0",
+        class_name="org.example.Main"
+    )
+    assert len(result) == 1
+    assert "artifact_id" in result[0].text
+    
+    # 测试空 version
+    result = await server._read_jar_source(
+        group_id="org.example",
+        artifact_id="test-lib",
+        version="",
+        class_name="org.example.Main"
+    )
+    assert len(result) == 1
+    assert "version" in result[0].text
+    
+    # 测试空 class_name
+    result = await server._read_jar_source(
+        group_id="org.example",
+        artifact_id="test-lib",
+        version="1.0.0",
+        class_name=""
+    )
+    assert len(result) == 1
+    assert "class_name" in result[0].text
 
 
 if __name__ == "__main__":
