@@ -25,10 +25,11 @@ def create_test_jar_with_class(jar_path: Path):
 
 
 def test_decompiler_initialization():
-    """Test that JavaDecompiler can be initialized."""
+    """Test that JavaDecompiler can be initialized and Fernflower is detected."""
     decompiler = JavaDecompiler()
-    # Check if fernflower is detected (it should be in decompilers/ folder)
-    assert decompiler.fernflower_jar is not None or decompiler.fernflower_jar is None
+    # Fernflower should be detected in the decompilers/ folder
+    assert decompiler.fernflower_jar is not None
+    assert decompiler.fernflower_jar.exists()
 
 
 def test_decompiler_reads_from_jar_directly():

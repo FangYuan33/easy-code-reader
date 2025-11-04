@@ -82,11 +82,12 @@ class JavaDecompiler:
         jar_name = jar_path.stem
         output_dir = output_base_dir / jar_name
         
-        # 检查缓存：查看是否已经反编译过
-        # 反编译后的文件存储在一个与原 jar 同名的 jar 中
+        # 定义反编译后的 JAR 路径和类文件在 JAR 中的路径
         decompiled_jar = output_dir / jar_path.name
         java_file_path_in_jar = class_name.replace('.', '/') + '.java'
         
+        # 检查缓存：查看是否已经反编译过
+        # 反编译后的文件存储在一个与原 jar 同名的 jar 中
         if decompiled_jar.exists():
             logger.info(f"发现缓存的反编译 JAR: {decompiled_jar}")
             try:
