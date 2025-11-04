@@ -1,0 +1,36 @@
+# Test files
+tests/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Development files
+.github/
+examples/
+IMPLEMENTATION_NOTES.md
+IMPLEMENTATION_SUMMARY.md
+EXAMPLES.md
+
+# Logs
+*.log
+src/easy_jar_reader/*.log
+
+# Virtual environments
+venv/
+env/
+.env
