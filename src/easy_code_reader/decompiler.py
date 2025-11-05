@@ -87,6 +87,7 @@ class JavaDecompiler:
         
         从指定的 JAR 文件中提取并反编译特定的 Java 类。
         使用缓存机制：如果已经反编译过，直接从缓存读取。
+        对于 SNAPSHOT 版本，使用带时间戳的缓存目录以支持版本更新。
         
         参数:
             jar_path: JAR 文件路径
@@ -106,8 +107,23 @@ class JavaDecompiler:
         jar_dir = jar_path.parent
         output_base_dir = jar_dir / "easy-code-reader"
         
-        # 从 jar 文件名中提取名称（不包含扩展名）作为子目录
-        output_dir = output_base_dir
+        # 提取 jar 文件名（不含扩展名）
+        jar_name_without_ext = jar_path.stem
+        
+        # 检查是否为 SNAPSHOT 版本的带时间戳 jar
+        # 格式如: artifact-1.0.11-20251030.085053-1.jar
+        is_snapshot = '-SNAPSHOT' in str(jar_dir) or self._is_timestamped_snapshot(jar_name_without_ext)
+        
+        # 如果是 SNAPSHOT，使用完整的 jar 文件名作为缓存目录（包含时间戳）
+        # 否则使用简化的目录名
+        if is_snapshot:
+            output_dir = output_base_dir / jar_name_without_ext
+            
+            # 清理旧的 SNAPSHOT 缓存
+            if output_base_dir.exists():
+                self._cleanup_old_snapshot_cache(output_base_dir, jar_name_without_ext)
+        else:
+            output_dir = output_base_dir
         
         # 定义反编译后的 JAR 路径和类文件在 JAR 中的路径
         decompiled_jar = output_dir / jar_path.name
@@ -178,6 +194,49 @@ class JavaDecompiler:
         except Exception as e:
             logger.error(f"反编译失败: {e}", exc_info=True)
             return self._fallback_class_info(jar_path, class_name)
+    
+    def _is_timestamped_snapshot(self, jar_name: str) -> bool:
+        """
+        检查 jar 文件名是否为带时间戳的 SNAPSHOT 版本
+        格式如: artifact-1.0.11-20251030.085053-1
+        """
+        import re
+        # 匹配时间戳模式: YYYYMMDD.HHMMSS-BUILD_NUMBER
+        pattern = r'-\d{8}\.\d{6}-\d+$'
+        return bool(re.search(pattern, jar_name))
+    
+    def _cleanup_old_snapshot_cache(self, cache_base_dir: Path, current_jar_name: str):
+        """
+        清理旧的 SNAPSHOT 缓存目录
+        
+        参数:
+            cache_base_dir: 缓存基础目录
+            current_jar_name: 当前 jar 文件名（不含扩展名）
+        """
+        try:
+            # 提取 artifact 名称和版本前缀
+            # 例如从 "athena-bugou-trade-export-1.0.11-20251030.085053-1" 
+            # 提取 "athena-bugou-trade-export-1.0.11"
+            import re
+            match = re.match(r'^(.*?-\d+\.\d+\.\d+)-\d{8}\.\d{6}-\d+$', current_jar_name)
+            if not match:
+                # 不是时间戳格式，无需清理
+                return
+            
+            artifact_prefix = match.group(1)
+            logger.info(f"检查是否有旧的 SNAPSHOT 缓存需要清理，前缀: {artifact_prefix}")
+            
+            # 查找所有匹配该前缀的缓存目录
+            for cache_dir in cache_base_dir.iterdir():
+                if cache_dir.is_dir() and cache_dir.name.startswith(artifact_prefix):
+                    # 如果不是当前版本的缓存，删除它
+                    if cache_dir.name != current_jar_name:
+                        logger.info(f"删除旧的 SNAPSHOT 缓存: {cache_dir}")
+                        import shutil
+                        shutil.rmtree(cache_dir, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f"清理旧 SNAPSHOT 缓存时出错: {e}")
+    
     
     def _fallback_class_info(self, jar_path: Path, class_name: str) -> str:
         """当反编译失败时的回退方案，返回基本类信息"""

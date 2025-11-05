@@ -389,6 +389,25 @@ class EasyCodeReaderServer:
         group_path = group_id.replace('.', os.sep)
         jar_dir = self.maven_home / group_path / artifact_id / version
         
+        # 对于 SNAPSHOT 版本，优先使用带时间戳的版本
+        if version.endswith('-SNAPSHOT'):
+            if jar_dir.exists():
+                # 查找带时间戳的 jar 文件，格式如: artifact-1.0.0-20251030.085053-1.jar
+                # 排除 sources 和 javadoc jar
+                timestamped_jars = [
+                    f for f in jar_dir.glob(f"{artifact_id}-*.jar")
+                    if not f.name.endswith('-sources.jar')
+                    and not f.name.endswith('-javadoc.jar')
+                    and not f.name.endswith('-SNAPSHOT.jar')
+                    and f.name.startswith(artifact_id)
+                ]
+                
+                if timestamped_jars:
+                    # 按文件名排序，获取最新的（时间戳最大的）
+                    timestamped_jars.sort(reverse=True)
+                    logger.info(f"找到 SNAPSHOT 带时间戳的 jar: {timestamped_jars[0]}")
+                    return timestamped_jars[0]
+        
         # 查找主 jar 文件
         main_jar = jar_dir / f"{artifact_id}-{version}.jar"
         if main_jar.exists():
@@ -408,6 +427,22 @@ class EasyCodeReaderServer:
         """获取 sources jar 文件路径"""
         group_path = group_id.replace('.', os.sep)
         jar_dir = self.maven_home / group_path / artifact_id / version
+        
+        # 对于 SNAPSHOT 版本，优先使用带时间戳的 sources jar
+        if version.endswith('-SNAPSHOT'):
+            if jar_dir.exists():
+                # 查找带时间戳的 sources jar 文件
+                timestamped_sources = [
+                    f for f in jar_dir.glob(f"{artifact_id}-*-sources.jar")
+                    if not f.name.endswith('-SNAPSHOT-sources.jar')
+                ]
+                
+                if timestamped_sources:
+                    # 按文件名排序，获取最新的
+                    timestamped_sources.sort(reverse=True)
+                    logger.info(f"找到 SNAPSHOT 带时间戳的 sources jar: {timestamped_sources[0]}")
+                    return timestamped_sources[0]
+        
         sources_jar = jar_dir / f"{artifact_id}-{version}-sources.jar"
         return sources_jar if sources_jar.exists() else None
     
