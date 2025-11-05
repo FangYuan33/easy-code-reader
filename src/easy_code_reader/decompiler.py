@@ -53,7 +53,7 @@ class JavaDecompiler:
         
         return None
     
-    def decompile_class(self, jar_path: Path, class_name: str) -> Optional[str]:
+    def decompile_class(self, jar_path: Path, class_name: str, cache_jar_name: Optional[str] = None) -> Optional[str]:
         """
         反编译 JAR 文件中的特定类
         
@@ -62,8 +62,9 @@ class JavaDecompiler:
         对于 SNAPSHOT 版本，使用带时间戳的缓存目录以支持版本更新。
         
         参数:
-            jar_path: JAR 文件路径
+            jar_path: 实际要反编译的 JAR 文件路径
             class_name: 要反编译的类的完全限定名（如 com.example.MyClass）
+            cache_jar_name: 缓存使用的 jar 名称（可选），用于 SNAPSHOT 版本的缓存命名
             
         返回:
             反编译后的源代码字符串，如果失败则返回基本的类信息
@@ -79,22 +80,24 @@ class JavaDecompiler:
         jar_dir = jar_path.parent
         output_dir = jar_dir / "easy-code-reader"
         
-        # 提取 jar 文件名（不含扩展名）
-        jar_name_without_ext = jar_path.stem
+        # 确定用于缓存命名的 jar 名称
+        # 如果提供了 cache_jar_name，使用它；否则使用实际 jar 的名称
+        cache_name = cache_jar_name if cache_jar_name else jar_path.name
+        cache_name_without_ext = Path(cache_name).stem
         
         # 检查是否为 SNAPSHOT 版本的带时间戳 jar
         # 格式如: artifact-1.0.11-20251030.085053-1.jar
-        is_snapshot = '-SNAPSHOT' in str(jar_dir) or self._is_timestamped_snapshot(jar_name_without_ext)
+        is_snapshot = '-SNAPSHOT' in str(jar_dir) or self._is_timestamped_snapshot(cache_name_without_ext)
         
         # 如果是 SNAPSHOT，清理旧的缓存
         if is_snapshot:
             # 清理旧的 SNAPSHOT 缓存
             if output_dir.exists():
-                self._cleanup_old_snapshot_cache(output_dir, jar_name_without_ext)
+                self._cleanup_old_snapshot_cache(output_dir, cache_name_without_ext)
         
         # 定义反编译后的 JAR 路径和类文件在 JAR 中的路径
-        # 反编译后的 jar 直接放在 easy-code-reader 目录下，不创建子目录
-        decompiled_jar = output_dir / jar_path.name
+        # 反编译后的 jar 使用 cache_name 进行命名
+        decompiled_jar = output_dir / cache_name
         java_file_path_in_jar = class_name.replace('.', '/') + '.java'
         
         # 检查缓存：查看是否已经反编译过
@@ -137,9 +140,18 @@ class JavaDecompiler:
                 return self._fallback_class_info(jar_path, class_name)
             
             # Fernflower 会将输出放在一个与原 jar 同名的 jar 中
-            # 直接从该 jar 文件中读取 .java 文件，无需解压
-            decompiled_jar = output_dir / jar_path.name
-            if not decompiled_jar.exists():
+            # 如果提供了 cache_jar_name，需要将生成的 jar 重命名
+            fernflower_output_jar = output_dir / jar_path.name
+            
+            # 如果缓存名称与实际jar名称不同，需要重命名
+            if cache_jar_name and fernflower_output_jar.name != cache_name:
+                if fernflower_output_jar.exists():
+                    logger.info(f"重命名反编译输出 {fernflower_output_jar.name} -> {cache_name}")
+                    fernflower_output_jar.rename(decompiled_jar)
+                else:
+                    logger.error(f"Fernflower 未生成预期的 JAR 文件: {fernflower_output_jar}")
+                    return self._fallback_class_info(jar_path, class_name)
+            elif not decompiled_jar.exists():
                 logger.error(f"Fernflower 未生成预期的 JAR 文件: {decompiled_jar}")
                 return self._fallback_class_info(jar_path, class_name)
             

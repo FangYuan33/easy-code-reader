@@ -240,7 +240,17 @@ class EasyCodeReaderServer:
             )]
         
         try:
-            decompiled_code = self.decompiler.decompile_class(jar_path, class_name)
+            # 对于 SNAPSHOT 版本，实际反编译使用 -SNAPSHOT.jar，但缓存使用带时间戳的版本名
+            actual_jar_to_decompile = jar_path
+            if version.endswith('-SNAPSHOT'):
+                snapshot_jar = self._get_snapshot_jar_path(group_id, artifact_id, version)
+                if snapshot_jar and snapshot_jar.exists():
+                    actual_jar_to_decompile = snapshot_jar
+                    logger.info(f"SNAPSHOT 版本: 使用 {snapshot_jar.name} 进行反编译，缓存名为 {jar_path.name}")
+            
+            decompiled_code = self.decompiler.decompile_class(
+                actual_jar_to_decompile, class_name, cache_jar_name=jar_path.name if actual_jar_to_decompile != jar_path else None
+            )
             
             result = {
                 "class_name": class_name,
@@ -469,6 +479,20 @@ class EasyCodeReaderServer:
                 return jar_files[0]
         
         return None
+    
+    def _get_snapshot_jar_path(self, group_id: str, artifact_id: str, version: str) -> Optional[Path]:
+        """
+        获取 SNAPSHOT jar 文件路径（不带时间戳）
+        对于 SNAPSHOT 版本，返回 artifact-version-SNAPSHOT.jar
+        """
+        if not version.endswith('-SNAPSHOT'):
+            return None
+        
+        group_path = group_id.replace('.', os.sep)
+        jar_dir = self.maven_home / group_path / artifact_id / version
+        snapshot_jar = jar_dir / f"{artifact_id}-{version}.jar"
+        
+        return snapshot_jar if snapshot_jar.exists() else None
     
     def _get_sources_jar_path(self, group_id: str, artifact_id: str, version: str) -> Optional[Path]:
         """获取 sources jar 文件路径"""
