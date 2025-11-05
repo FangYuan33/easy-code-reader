@@ -27,7 +27,7 @@ class JavaDecompiler:
         """
         self.fernflower_jar = self._detect_fernflower()
     
-    def _detect_fernflower(self) -> Path | None:
+    def _detect_fernflower(self) -> Optional[Path]:
         """
         检测 Fernflower 反编译器
         
