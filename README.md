@@ -4,7 +4,7 @@
 
 [![PyPI version](https://badge.fury.io/py/easy-code-reader.svg)](https://badge.fury.io/py/easy-code-reader)
 [![Python Version](https://img.shields.io/pypi/pyversions/easy-code-reader)](https://pypi.org/project/easy-code-reader/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 > **📢 发布状态**: 
 > - ✅ **已发布到 PyPI** - 可以直接使用 `uvx easy-code-reader` 开箱即用
@@ -19,7 +19,8 @@
 - 🛠️ **Fernflower 反编译器支持**：使用 IntelliJ IDEA 的 Fernflower 反编译器
 - ⚡ **智能缓存机制**：反编译结果缓存在 JAR 包同目录的 `easy-code-reader/` 下，避免重复反编译
 - ⚙️ **自定义 Maven 路径**：支持配置自定义的 Maven 仓库路径
-- 📄 **智能内容管理**：自动摘要大型源文件，支持行数限制
+- 📁 **本地项目代码读取**：支持从本地项目目录读取源代码，配合 `--project-dir` 参数使用
+- 📋 **项目列举功能**：列出项目目录下所有项目，便于快速查找和定位
 
 ## 前置要求
 
@@ -39,8 +40,14 @@
 # 无需安装，直接运行
 uvx easy-code-reader
 
-# 或指定自定义 Maven 仓库
+# 指定自定义 Maven 仓库路径
 uvx easy-code-reader --maven-repo /path/to/maven/repository
+
+# 指定项目目录路径
+uvx easy-code-reader --project-dir /path/to/projects
+
+# 同时指定 Maven 仓库和项目目录
+uvx easy-code-reader --maven-repo /path/to/maven/repository --project-dir /path/to/projects
 ```
 
 #### 首次使用 uv？
@@ -138,9 +145,17 @@ easy-code-reader
 # 指定自定义 Maven 仓库路径
 easy-code-reader --maven-repo /path/to/your/maven/repository
 
+# 指定项目目录路径
+easy-code-reader --project-dir /path/to/projects
+
+# 同时指定 Maven 仓库和项目目录
+easy-code-reader --maven-repo /path/to/your/maven/repository --project-dir /path/to/projects
+
 # 或使用 Python 模块方式运行
 python -m easy_code_reader
 python -m easy_code_reader --maven-repo /path/to/your/maven/repository
+python -m easy_code_reader --project-dir /path/to/projects
+python -m easy_code_reader --maven-repo /path/to/maven --project-dir /path/to/projects
 ```
 
 ### 在 MCP 客户端中配置
@@ -168,7 +183,7 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
 }
 ```
 
-##### 使用 uvx 并指定自定义 Maven 路径：
+##### 使用 uvx 并指定自定义 Maven 路径和项目目录：
 
 ```json
 {
@@ -178,7 +193,9 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
       "args": [
         "easy-code-reader",
         "--maven-repo",
-        "/custom/path/to/maven/repository"
+        "/custom/path/to/maven/repository",
+        "--project-dir",
+        "/path/to/projects"
       ],
       "env": {}
     }
@@ -214,7 +231,7 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
 }
 ```
 
-##### 指定自定义 Maven 路径（Python 模块方式）：
+##### 指定自定义 Maven 路径和项目目录（Python 模块方式）：
 
 ```json
 {
@@ -225,7 +242,9 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
         "-m", 
         "easy_code_reader",
         "--maven-repo",
-        "/custom/path/to/maven/repository"
+        "/custom/path/to/maven/repository",
+        "--project-dir",
+        "/path/to/projects"
       ],
       "env": {}
     }
@@ -246,8 +265,6 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
 - `version` (必需): Maven version，例如 `5.3.21`
 - `class_name` (必需): 完全限定的类名，例如 `org.springframework.core.SpringVersion`
 - `prefer_sources` (可选，默认 `true`): 优先使用 sources jar 而不是反编译
-- `summarize_large_content` (可选，默认 `true`): 自动摘要大型内容
-- `max_lines` (可选，默认 `500`): 返回的最大行数，设为 `0` 返回全部内容
 
 **示例：**
 
@@ -264,12 +281,90 @@ Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客�
 
 ```json
 {
-  "source": "sources-jar",
   "class_name": "org.springframework.core.SpringVersion",
   "artifact": "org.springframework:spring-core:5.3.21",
   "code": "package org.springframework.core;\n\npublic class SpringVersion {\n    // ...\n}"
 }
 ```
+
+### read_project_code
+
+从本地项目目录中读取指定项目的源代码。
+
+**参数：**
+
+- `project_name` (必需): 项目名称，例如 `my-project`
+- `class_name` (必需): 完全限定的类名或相对路径
+  - 类名格式：`com.example.MyClass`
+  - 路径格式：`src/main/java/com/example/MyClass.java`
+- `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
+
+**示例：**
+
+```json
+{
+  "project_name": "my-spring-app",
+  "class_name": "com.example.service.UserService"
+}
+```
+
+**返回格式：**
+
+```json
+{
+  "project_name": "my-spring-app",
+  "class_name": "com.example.service.UserService",
+  "file_path": "/path/to/projects/my-spring-app/src/main/java/com/example/service/UserService.java",
+  "code": "package com.example.service;\n\npublic class UserService {\n    // ...\n}"
+}
+```
+
+**支持的文件类型：**
+- Java (.java)
+- Kotlin (.kt)
+
+**自动搜索路径：**
+- `src/main/java/{class_path}.java`
+- `src/{class_path}.java`
+- `{class_path}.java`
+- `src/main/kotlin/{class_path}.kt`
+- `src/{class_path}.kt`
+- `{class_path}.kt`
+
+### list_all_project
+
+列举项目目录下所有的项目文件夹名称。
+
+**参数：**
+
+- `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
+
+**示例：**
+
+```json
+{}
+```
+
+**返回格式：**
+
+```json
+{
+  "project_dir": "/path/to/projects",
+  "project_count": 5,
+  "projects": [
+    "project-a",
+    "project-b",
+    "project-c",
+    "project-d",
+    "project-e"
+  ]
+}
+```
+
+**用途：**
+- 查看所有可用的项目
+- 当输入不完整的项目名时，帮助推理出最接近的项目名
+- 验证项目是否存在
 
 ## 反编译器
 
@@ -298,9 +393,6 @@ Fernflower JAR 文件已包含在 `decompilers/` 目录中：
 
 - `MAVEN_REPO`: 自定义 Maven 仓库路径
 - `M2_HOME`: Maven 主目录（将使用 `$M2_HOME/repository`）
-- `MCP_MAX_RESPONSE_SIZE`: 最大响应大小（字节），默认 50000
-- `MCP_MAX_TEXT_LENGTH`: 最大文本长度，默认 10000
-- `MCP_MAX_LINES`: 最大行数，默认 500
 
 ## 开发
 
@@ -335,7 +427,9 @@ easy-code-reader/
 
 ## 许可证
 
-MIT License
+Apache License 2.0
+
+详见 [LICENSE](LICENSE) 文件。
 
 ## 贡献
 
