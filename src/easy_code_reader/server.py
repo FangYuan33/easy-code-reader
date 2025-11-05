@@ -292,12 +292,12 @@ class EasyCodeReaderServer:
             )]
         
         # 尝试查找文件
-        # 1. 如果 class_name 看起来像是路径（包含 / 或 .java），直接使用
-        if '/' in class_name or class_name.endswith('.java'):
+        # 1. 如果 class_name 看起来像是路径（包含 / 或常见文件扩展名），直接使用
+        if '/' in class_name or class_name.endswith('.java') or class_name.endswith('.kt'):
             file_path = project_path / class_name
             if file_path.exists() and file_path.is_file():
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         code = f.read()
                     result = {
                         "project_name": project_name,
@@ -329,7 +329,7 @@ class EasyCodeReaderServer:
             file_path = project_path / pattern
             if file_path.exists() and file_path.is_file():
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         code = f.read()
                     result = {
                         "project_name": project_name,
