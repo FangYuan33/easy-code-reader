@@ -41,11 +41,16 @@ class JavaDecompiler:
             # 获取当前模块文件的目录
             current_module_dir = Path(__file__).parent
 
-            # 从 src/easy_jar_reader/ 向上两级到项目根目录，然后找 decompilers/
+            # 首先检查包内的 decompilers/ 目录（用于已安装的包）
+            fernflower_path = current_module_dir / "decompilers" / "fernflower.jar"
+            if fernflower_path.exists():
+                logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
+                return fernflower_path
+
+            # 回退到检查项目根目录的 decompilers/（用于开发环境）
             project_root = current_module_dir.parent.parent
             fernflower_path = project_root / "decompilers" / "fernflower.jar"
-
-            if Path(fernflower_path).exists():
+            if fernflower_path.exists():
                 logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
                 return fernflower_path
         except Exception as e:
@@ -161,7 +166,7 @@ class JavaDecompiler:
                     class_data = jar.read(class_file_path)
                     
                     # Basic bytecode analysis
-                    info = f"// 反编译不可用\n"
+                    info = "// 反编译不可用\n"
                     info += f"// 类: {class_name}\n"
                     info += f"// 大小: {len(class_data)} 字节\n"
                     info += f"// 位置: {jar_path}\n\n"
