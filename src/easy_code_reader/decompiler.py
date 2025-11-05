@@ -77,7 +77,7 @@ class JavaDecompiler:
         
         # 获取输出目录（jar 包所在目录的 easy-code-reader 子目录）
         jar_dir = jar_path.parent
-        output_base_dir = jar_dir / "easy-code-reader"
+        output_dir = jar_dir / "easy-code-reader"
         
         # 提取 jar 文件名（不含扩展名）
         jar_name_without_ext = jar_path.stem
@@ -86,18 +86,14 @@ class JavaDecompiler:
         # 格式如: artifact-1.0.11-20251030.085053-1.jar
         is_snapshot = '-SNAPSHOT' in str(jar_dir) or self._is_timestamped_snapshot(jar_name_without_ext)
         
-        # 如果是 SNAPSHOT，使用完整的 jar 文件名作为缓存目录（包含时间戳）
-        # 否则使用简化的目录名
+        # 如果是 SNAPSHOT，清理旧的缓存
         if is_snapshot:
-            output_dir = output_base_dir / jar_name_without_ext
-            
             # 清理旧的 SNAPSHOT 缓存
-            if output_base_dir.exists():
-                self._cleanup_old_snapshot_cache(output_base_dir, jar_name_without_ext)
-        else:
-            output_dir = output_base_dir
+            if output_dir.exists():
+                self._cleanup_old_snapshot_cache(output_dir, jar_name_without_ext)
         
         # 定义反编译后的 JAR 路径和类文件在 JAR 中的路径
+        # 反编译后的 jar 直接放在 easy-code-reader 目录下，不创建子目录
         decompiled_jar = output_dir / jar_path.name
         java_file_path_in_jar = class_name.replace('.', '/') + '.java'
         
@@ -179,7 +175,7 @@ class JavaDecompiler:
     
     def _cleanup_old_snapshot_cache(self, cache_base_dir: Path, current_jar_name: str):
         """
-        清理旧的 SNAPSHOT 缓存目录
+        清理旧的 SNAPSHOT 缓存 jar 文件
         
         参数:
             cache_base_dir: 缓存基础目录
@@ -198,14 +194,14 @@ class JavaDecompiler:
             artifact_prefix = match.group(1)
             logger.info(f"检查是否有旧的 SNAPSHOT 缓存需要清理，前缀: {artifact_prefix}")
             
-            # 查找所有匹配该前缀的缓存目录
-            for cache_dir in cache_base_dir.iterdir():
-                if cache_dir.is_dir() and cache_dir.name.startswith(artifact_prefix):
+            # 查找所有匹配该前缀的缓存 jar 文件
+            for cached_file in cache_base_dir.iterdir():
+                if cached_file.is_file() and cached_file.name.startswith(artifact_prefix) and cached_file.name.endswith('.jar'):
                     # 如果不是当前版本的缓存，删除它
-                    if cache_dir.name != current_jar_name:
-                        logger.info(f"删除旧的 SNAPSHOT 缓存: {cache_dir}")
-                        import shutil
-                        shutil.rmtree(cache_dir, ignore_errors=True)
+                    cached_name_without_ext = cached_file.stem
+                    if cached_name_without_ext != current_jar_name:
+                        logger.info(f"删除旧的 SNAPSHOT 缓存 jar: {cached_file}")
+                        cached_file.unlink(missing_ok=True)
         except Exception as e:
             logger.warning(f"清理旧 SNAPSHOT 缓存时出错: {e}")
     

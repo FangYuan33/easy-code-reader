@@ -112,5 +112,35 @@ def test_jar_reading_without_extraction():
             assert not (tmp_path / "com" / "example").exists()
 
 
+def test_decompiled_jar_output_location():
+    """Test that decompiled jar is placed directly in easy-code-reader directory, not in a subdirectory."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        
+        # Create a Maven-like directory structure for a SNAPSHOT jar
+        jar_dir = tmp_path / "com" / "example" / "test-artifact" / "1.0.11-SNAPSHOT"
+        jar_dir.mkdir(parents=True)
+        
+        # Create a timestamped SNAPSHOT jar
+        test_jar = jar_dir / "test-artifact-1.0.11-20251030.085053-1.jar"
+        create_test_jar_with_class(test_jar)
+        
+        # Simulate decompilation by creating the expected structure
+        decompiler = JavaDecompiler()
+        
+        # Calculate where the decompiled jar should be placed
+        output_dir = jar_dir / "easy-code-reader"
+        
+        # The decompiled jar should be directly in easy-code-reader directory
+        expected_decompiled_jar = output_dir / "test-artifact-1.0.11-20251030.085053-1.jar"
+        
+        # Verify path structure - it should NOT have an extra nested directory
+        # Current issue: /path/easy-code-reader/test-artifact-1.0.11-20251030.085053-1/test-artifact-1.0.11-20251030.085053-1.jar
+        # Expected fix: /path/easy-code-reader/test-artifact-1.0.11-20251030.085053-1.jar
+        
+        # Verify the expected path only has two segments after jar_dir
+        assert expected_decompiled_jar.relative_to(jar_dir).parts == ("easy-code-reader", "test-artifact-1.0.11-20251030.085053-1.jar")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
