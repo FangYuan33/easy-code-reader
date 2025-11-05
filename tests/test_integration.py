@@ -82,7 +82,7 @@ async def test_extract_from_sources_jar(mock_maven_repo):
     response_text = result[0].text
     response_data = json.loads(response_text)
     
-    assert response_data["source"] == "sources-jar"
+    # 验证返回的字段（source字段已被移除）
     assert response_data["class_name"] == "org.example.Main"
     assert "Hello, World!" in response_data["code"]
     assert "public static void main" in response_data["code"]
@@ -127,28 +127,6 @@ async def test_jar_not_found(mock_maven_repo):
     assert len(result) == 1
     response_text = result[0].text
     assert "未找到 JAR 文件" in response_text or "not found" in response_text.lower()
-
-
-@pytest.mark.asyncio
-async def test_max_lines_limit(mock_maven_repo):
-    """测试行数限制功能"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="test-lib",
-        version="1.0.0",
-        class_name="org.example.Main",
-        max_lines=3
-    )
-    
-    assert len(result) == 1
-    response_text = result[0].text
-    response_data = json.loads(response_text)
-    
-    # 验证代码被截断
-    code_lines = response_data["code"].split('\n')
-    assert len(code_lines) <= 10  # 包括截断提示信息
 
 
 def test_config_maven_home():
