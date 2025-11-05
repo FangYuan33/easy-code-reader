@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 import subprocess
 
-from easy_jar_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyJarReaderServer
 
 
 def create_compiled_class_jar():

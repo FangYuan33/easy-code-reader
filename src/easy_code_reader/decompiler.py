@@ -48,13 +48,6 @@ class JavaDecompiler:
                 logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
                 return fernflower_path
 
-            # 回退到检查项目根目录的 decompilers/（用于开发环境）
-            project_root = current_module_dir.parent.parent
-            fernflower_path = project_root / "decompilers" / "fernflower.jar"
-            logger.info(f"尝试从项目根目录查找 Fernflower: {fernflower_path}")
-            if fernflower_path.exists():
-                logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
-                return fernflower_path
         except Exception as e:
             logger.debug(f"Fernflower 检测失败: {e}")
         

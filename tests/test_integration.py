@@ -7,8 +7,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from easy_jar_reader.server import EasyJarReaderServer
-from easy_jar_reader.config import Config
+from easy_code_reader.server import EasyJarReaderServer
+from easy_code_reader.config import Config
 
 
 @pytest.fixture

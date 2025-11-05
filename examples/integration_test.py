@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from easy_jar_reader.server import (
+from easy_code_reader.server import (
     read_jar_file
 )
 

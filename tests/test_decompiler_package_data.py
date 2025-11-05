@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from easy_jar_reader.decompiler import JavaDecompiler
+from easy_code_reader.decompiler import JavaDecompiler
 
 
 def test_decompiler_found_in_package():

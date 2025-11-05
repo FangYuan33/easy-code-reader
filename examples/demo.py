@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from easy_jar_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyJarReaderServer
 
 
 def create_demo_maven_repo():

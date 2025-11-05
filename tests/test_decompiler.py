@@ -3,10 +3,9 @@
 import pytest
 import tempfile
 import zipfile
-import subprocess
 from pathlib import Path
-from easy_jar_reader.decompiler import JavaDecompiler
 
+from easy_code_reader.decompiler import JavaDecompiler
 
 def create_test_jar_with_class(jar_path: Path):
     """Create a test JAR file with a compiled class."""
