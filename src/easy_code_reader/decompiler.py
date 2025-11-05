@@ -51,34 +51,6 @@ class JavaDecompiler:
         except Exception as e:
             logger.debug(f"Fernflower 检测失败: {e}")
         
-        # 调试信息：在返回 None 前显示详细的搜索信息
-        logger.warning("🔍 Fernflower 检测失败，显示调试信息:")
-        try:
-            current_module_dir = Path(__file__).parent
-            project_root = current_module_dir.parent.parent
-            
-            logger.info(f"  📂 当前模块目录: {current_module_dir}")
-            logger.info(f"  🏠 项目根目录: {project_root}")
-            logger.info(f"  💼 当前工作目录: {Path.cwd()}")
-            
-            # 检查并显示相关目录内容
-            if current_module_dir.exists():
-                logger.info(f"  📁 模块目录内容: {list(current_module_dir.iterdir())}")
-            
-            if project_root.exists():
-                logger.info(f"  📁 项目根目录内容: {list(project_root.iterdir())}")
-                decompilers_dir = project_root / "decompilers"
-                if decompilers_dir.exists():
-                    logger.info(f"  📁 decompilers 目录内容: {list(decompilers_dir.iterdir())}")
-            
-            # 递归搜索所有 fernflower.jar 文件
-            logger.info("  🔍 递归搜索所有 fernflower.jar 文件:")
-            for jar_file in project_root.rglob("fernflower.jar"):
-                logger.info(f"    🎯 发现: {jar_file}")
-                
-        except Exception as debug_e:
-            logger.debug(f"调试信息收集失败: {debug_e}")
-        
         return None
     
     def decompile_class(self, jar_path: Path, class_name: str) -> Optional[str]:
