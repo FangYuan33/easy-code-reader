@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Easy JAR Reader MCP Server
+Easy Code Reader MCP Server
 
 这是一个 Model Context Protocol (MCP) 服务器，用于从 Maven 依赖中读取 Java 源代码。
 
@@ -32,7 +32,7 @@ from .response_manager import ResponseManager
 
 # 配置日志系统
 import os
-log_file = os.path.join(os.path.dirname(__file__), "easy_jar_reader.log")
+log_file = os.path.join(os.path.dirname(__file__), "easy_code_reader.log")
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -45,9 +45,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class EasyJarReaderServer:
+class EasyCodeReaderServer:
     """
-    Easy JAR Reader MCP 服务器
+    Easy Code Reader MCP 服务器
     
     提供从 Maven 依赖中读取 Java 源代码的功能。
     """
@@ -302,7 +302,7 @@ async def main(maven_repo_path: Optional[str] = None):
     参数:
         maven_repo_path: 自定义 Maven 仓库路径（可选）
     """
-    server = EasyJarReaderServer(maven_repo_path=maven_repo_path)
+    server = EasyCodeReaderServer(maven_repo_path=maven_repo_path)
     await server.run()
 
 

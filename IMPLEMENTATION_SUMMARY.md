@@ -1,10 +1,10 @@
-# Easy JAR Reader - MCP Server 实现总结
+# Easy Code Reader - MCP Server 实现总结
 
 ## 项目概述 / Project Overview
 
-Easy JAR Reader 是一个使用 Python 编写的 Model Context Protocol (MCP) 服务器，用于读取和分析 JAR（Java 归档）文件。
+Easy Code Reader 是一个使用 Python 编写的 Model Context Protocol (MCP) 服务器，用于读取和分析 JAR（Java 归档）文件。
 
-Easy JAR Reader is a Model Context Protocol (MCP) server written in Python for reading and analyzing JAR (Java Archive) files.
+Easy Code Reader is a Model Context Protocol (MCP) server written in Python for reading and analyzing JAR (Java Archive) files.
 
 ## 实现的功能 / Implemented Features
 
@@ -36,8 +36,8 @@ The server provides 4 main tools:
 ## 项目结构 / Project Structure
 
 ```
-easy-jar-reader/
-├── src/easy_jar_reader/
+easy-code-reader/
+├── src/easy_code_reader/
 │   ├── __init__.py          # 包初始化 / Package initialization
 │   ├── __main__.py          # 模块入口点 / Module entry point
 │   └── server.py            # MCP 服务器主实现 / Main MCP server implementation
@@ -59,8 +59,8 @@ easy-jar-reader/
 
 ```bash
 # 克隆仓库 / Clone repository
-git clone https://github.com/FangYuan33/easy-jar-reader.git
-cd easy-jar-reader
+git clone https://github.com/FangYuan33/easy-code-reader.git
+cd easy-code-reader
 
 # 安装依赖 / Install dependencies
 pip install -e .
@@ -70,10 +70,10 @@ pip install -e .
 
 ```bash
 # 直接运行 / Direct run
-python -m easy_jar_reader.server
+python -m easy_code_reader.server
 
 # 或使用模块方式 / Or use module method
-python -m easy_jar_reader
+python -m easy_code_reader
 ```
 
 ### 3. 与 Claude Desktop 集成 / Integration with Claude Desktop
@@ -85,9 +85,9 @@ python -m easy_jar_reader
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "python",
-      "args": ["-m", "easy_jar_reader.server"]
+      "args": ["-m", "easy_code_reader.server"]
     }
   }
 }

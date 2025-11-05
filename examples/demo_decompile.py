@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 import subprocess
 
-from easy_code_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyCodeReaderServer
 
 
 def create_compiled_class_jar():
@@ -99,7 +99,7 @@ async def demo_decompilation():
     
     # 初始化服务器
     print("2. 初始化 Easy JAR Reader 服务器...")
-    server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     if server.decompiler.fernflower_jar:
         print(f"   Fernflower 反编译器已就绪")
     else:

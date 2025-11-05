@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example usage of the Easy JAR Reader MCP Server
+Example usage of the Easy Code Reader MCP Server
 
 This example demonstrates how to interact with the MCP server programmatically.
 """
@@ -11,11 +11,11 @@ from pathlib import Path
 
 # Example 1: Basic server information
 print("=" * 80)
-print("Easy JAR Reader MCP Server - Example Usage")
+print("Easy Code Reader MCP Server - Example Usage")
 print("=" * 80)
 
 print("""
-The Easy JAR Reader is a Model Context Protocol (MCP) server that provides
+The Easy Code Reader is a Model Context Protocol (MCP) server that provides
 tools for reading and analyzing JAR files.
 
 Available Tools:
@@ -76,7 +76,7 @@ print("-" * 80)
 print("""
 To start the MCP server, run:
 
-    python -m easy_jar_reader.server
+    python -m easy_code_reader.server
 
 Or use it with an MCP client by adding it to your client configuration.
 
@@ -84,9 +84,9 @@ Example Claude Desktop configuration (~/.config/claude/config.json):
 
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "python",
-      "args": ["-m", "easy_jar_reader.server"]
+      "args": ["-m", "easy_code_reader.server"]
     }
   }
 }

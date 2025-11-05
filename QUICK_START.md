@@ -1,12 +1,12 @@
-# Easy JAR Reader - 快速开始指南
+# Easy Code Reader - 快速开始指南
 
-# Easy JAR Reader - 快速开始指南
+# Easy Code Reader - 快速开始指南
 
 > **📢 发布状态说明**: 
 > - 如果包**已发布到 PyPI**：可以直接使用下方的"方式 1"（uvx），真正开箱即用
 > - 如果包**未发布到 PyPI**：需要先手动安装（见"临时方案"部分）
 >
-> 检查是否已发布：访问 https://pypi.org/project/easy-jar-reader/
+> 检查是否已发布：访问 https://pypi.org/project/easy-code-reader/
 
 ## 🎯 方式 1: 使用 uvx（推荐 - 开箱即用）
 
@@ -15,7 +15,7 @@
 最简单的使用方式，无需安装，直接运行：
 
 ```bash
-uvx easy-jar-reader
+uvx easy-code-reader
 ```
 
 ### 首次使用 uv？
@@ -42,9 +42,9 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
-      "args": ["easy-jar-reader"],
+      "args": ["easy-code-reader"],
       "env": {}
     }
   }
@@ -56,10 +56,10 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
       "args": [
-        "easy-jar-reader",
+        "easy-code-reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -73,7 +73,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ### 1. 我需要先安装什么吗？
 
-**不需要！** 如果您已经安装了 `uv`，可以直接使用 `uvx easy-jar-reader`。
+**不需要！** 如果您已经安装了 `uv`，可以直接使用 `uvx easy-code-reader`。
 如果您还没有安装 `uv`，可以通过以下方式安装：
 
 ```bash
@@ -94,8 +94,8 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ### 3. 如何验证配置是否正确？
 
-1. 在终端运行 `uvx easy-jar-reader --help`，应该看到帮助信息
-2. 在 Claude Desktop 中，重启应用后检查是否能看到 `easy-jar-reader` 工具
+1. 在终端运行 `uvx easy-code-reader --help`，应该看到帮助信息
+2. 在 Claude Desktop 中，重启应用后检查是否能看到 `easy-code-reader` 工具
 3. 尝试读取一个已知的 JAR 包源码
 
 ### 4. 我可以使用其他方式运行吗？
@@ -104,13 +104,13 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 **方式 1**: 安装后直接运行
 ```bash
-pip install easy-jar-reader
-easy-jar-reader
+pip install easy-code-reader
+easy-code-reader
 ```
 
 **方式 2**: Python 模块方式
 ```bash
-python -m easy_jar_reader
+python -m easy_code_reader
 ```
 
 ## 示例用法
@@ -128,5 +128,5 @@ python -m easy_jar_reader
 
 ## 获取帮助
 
-- GitHub: https://github.com/FangYuan33/easy-jar-reader
-- Issues: https://github.com/FangYuan33/easy-jar-reader/issues
+- GitHub: https://github.com/FangYuan33/easy-code-reader
+- Issues: https://github.com/FangYuan33/easy-code-reader/issues

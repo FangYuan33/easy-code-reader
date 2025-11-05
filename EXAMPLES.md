@@ -1,13 +1,13 @@
-# Easy JAR Reader 使用示例
+# Easy Code Reader 使用示例
 
 ## 示例 1: 基本使用
 
 ```bash
 # 启动 MCP 服务器（使用默认 Maven 仓库）
-python -m easy_jar_reader
+python -m easy_code_reader
 
 # 使用自定义 Maven 仓库路径
-python -m easy_jar_reader --maven-repo /path/to/maven/repo
+python -m easy_code_reader --maven-repo /path/to/maven/repo
 ```
 
 ## 示例 2: 在 Claude Desktop 中配置
@@ -17,9 +17,9 @@ python -m easy_jar_reader --maven-repo /path/to/maven/repo
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "python",
-      "args": ["-m", "easy_jar_reader"],
+      "args": ["-m", "easy_code_reader"],
       "env": {}
     }
   }
@@ -99,7 +99,7 @@ export MCP_MAX_TEXT_LENGTH=20000
 export MCP_MAX_LINES=1000
 
 # 启动服务器
-python -m easy_jar_reader
+python -m easy_code_reader
 ```
 
 ## 常见 Maven 依赖示例

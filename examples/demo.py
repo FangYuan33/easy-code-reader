@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from easy_code_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyCodeReaderServer
 
 
 def create_demo_maven_repo():
@@ -115,7 +115,7 @@ async def demo_read_source():
     
     # 初始化服务器
     print("2. 初始化 Easy JAR Reader 服务器...")
-    server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     print(f"   可用的反编译器: {list(server.decompiler.available_decompilers.keys())}")
     print()
     
