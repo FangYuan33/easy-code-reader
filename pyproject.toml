@@ -67,7 +67,7 @@ packages = ["easy_jar_reader"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-easy_jar_reader = ["py.typed"]
+easy_jar_reader = ["py.typed", "decompilers/*.jar"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
