@@ -42,7 +42,7 @@ def test_decompiler_reads_from_jar_directly():
         
         # Create a simulated decompiled JAR (what Fernflower would produce)
         # In the output directory structure
-        output_dir = tmp_path / "easy-jar-reader" / "test"
+        output_dir = tmp_path / "easy-code-reader" / "test"
         output_dir.mkdir(parents=True)
         
         decompiled_jar = output_dir / "test.jar"

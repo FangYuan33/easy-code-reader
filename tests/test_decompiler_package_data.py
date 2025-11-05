@@ -10,7 +10,7 @@ def test_decompiler_found_in_package():
     
     This test verifies the fix for the issue where the decompiler was not
     found when the package was installed from PyPI. The JAR file should now
-    be included as package data in src/easy_jar_reader/decompilers/
+    be included as package data in src/easy_code_reader/decompilers/
     """
     decompiler = JavaDecompiler()
     
@@ -40,7 +40,7 @@ def test_package_data_location_priority():
     decompiler = JavaDecompiler()
     
     # Get the path to the decompiler module dynamically
-    spec = importlib.util.find_spec('easy_jar_reader.decompiler')
+    spec = importlib.util.find_spec('easy_code_reader.decompiler')
     if spec and spec.origin:
         # We can locate the module
         decompiler_module_path = Path(spec.origin)

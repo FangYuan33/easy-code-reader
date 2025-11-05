@@ -1,6 +1,6 @@
 # 发布到 PyPI 指南
 
-本文档介绍如何将 Easy JAR Reader 发布到 Python Package Index (PyPI)。
+本文档介绍如何将 Easy Code Reader 发布到 Python Package Index (PyPI)。
 
 ## 📋 前置准备
 
@@ -22,7 +22,7 @@ pip install --upgrade build twine
 1. 登录 PyPI 账号
 2. 访问 https://pypi.org/manage/account/token/
 3. 点击 "Add API token"
-4. 输入 token 名称（例如：easy-jar-reader-upload）
+4. 输入 token 名称（例如：easy-code-reader-upload）
 5. 选择 Scope：
    - 首次发布选择 "Entire account"
    - 后续可以创建项目专用 token
@@ -121,8 +121,8 @@ python -m build
 ```
 
 这会在 `dist/` 目录生成：
-- `easy_jar_reader-x.x.x-py3-none-any.whl` (wheel 包)
-- `easy_jar_reader-x.x.x.tar.gz` (源码包)
+- `easy_code_reader-x.x.x-py3-none-any.whl` (wheel 包)
+- `easy_code_reader-x.x.x.tar.gz` (源码包)
 
 #### 步骤 5: 检查包
 
@@ -141,10 +141,10 @@ twine upload --repository testpypi dist/*
 
 ```bash
 # 从测试 PyPI 安装
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-jar-reader
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-code-reader
 
 # 测试运行
-easy-jar-reader --help
+easy-code-reader --help
 ```
 
 #### 步骤 8: 上传到正式 PyPI
@@ -157,13 +157,13 @@ twine upload dist/*
 
 ```bash
 # 从正式 PyPI 安装
-pip install easy-jar-reader
+pip install easy-code-reader
 
 # 测试运行
-easy-jar-reader --help
+easy-code-reader --help
 
 # 或使用 uvx 测试
-uvx easy-jar-reader --help
+uvx easy-code-reader --help
 ```
 
 #### 步骤 10: 创建 Git Tag
@@ -225,11 +225,11 @@ git push origin v0.1.0
 
 ### 1. 包名已被占用
 
-错误信息：`The name 'easy-jar-reader' is too similar to an existing project`
+错误信息：`The name 'easy-code-reader' is too similar to an existing project`
 
 解决方案：
 - 在 `pyproject.toml` 中修改 `name` 字段
-- 建议使用更独特的名称，如 `easy-jar-reader-mcp`
+- 建议使用更独特的名称，如 `easy-code-reader-mcp`
 
 ### 2. 版本号已存在
 

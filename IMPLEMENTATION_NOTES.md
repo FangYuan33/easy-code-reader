@@ -1,8 +1,8 @@
-# Easy JAR Reader - 实现说明
+# Easy Code Reader - 实现说明
 
 ## 项目概述
 
-Easy JAR Reader 是一个 MCP (Model Context Protocol) 服务器，用于从 Maven 依赖中读取 Java 源代码。本项目基于 [maven-decoder-mcp](https://github.com/salitaba/maven-decoder-mcp) 的参考实现，但仅保留了核心的源代码读取功能，去除了其他不必要的功能。
+Easy Code Reader 是一个 MCP (Model Context Protocol) 服务器，用于从 Maven 依赖中读取 Java 源代码。本项目基于 [maven-decoder-mcp](https://github.com/salitaba/maven-decoder-mcp) 的参考实现，但仅保留了核心的源代码读取功能，去除了其他不必要的功能。
 
 ## 核心功能实现
 

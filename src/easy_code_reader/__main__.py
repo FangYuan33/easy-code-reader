@@ -1,4 +1,4 @@
-"""Entry point for running the Easy JAR Reader MCP server as a module."""
+"""Entry point for running the Easy Code Reader MCP server as a module."""
 
 import argparse
 import asyncio
@@ -8,7 +8,7 @@ from .server import main as server_main
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description='Easy JAR Reader MCP Server - 从 Maven 依赖中读取 Java 源代码'
+        description='Easy Code Reader MCP Server - 从 Maven 依赖中读取 Java 源代码'
     )
     parser.add_argument(
         '--maven-repo',

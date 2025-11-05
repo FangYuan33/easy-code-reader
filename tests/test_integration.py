@@ -1,4 +1,4 @@
-"""Integration tests for Easy JAR Reader MCP Server."""
+"""Integration tests for Easy Code Reader MCP Server."""
 
 import asyncio
 import json
@@ -7,7 +7,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from easy_code_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyCodeReaderServer
 from easy_code_reader.config import Config
 
 
@@ -58,7 +58,7 @@ public class Main {
 @pytest.mark.asyncio
 async def test_server_initialization(mock_maven_repo):
     """测试服务器初始化"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     assert server.maven_home == mock_maven_repo
     assert server.decompiler is not None
@@ -68,7 +68,7 @@ async def test_server_initialization(mock_maven_repo):
 @pytest.mark.asyncio
 async def test_extract_from_sources_jar(mock_maven_repo):
     """测试从 sources jar 提取源代码"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     result = await server._read_jar_source(
         group_id="org.example",
@@ -91,7 +91,7 @@ async def test_extract_from_sources_jar(mock_maven_repo):
 @pytest.mark.asyncio
 async def test_get_jar_path(mock_maven_repo):
     """测试获取 JAR 文件路径"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     jar_path = server._get_jar_path("org.example", "test-lib", "1.0.0")
     
@@ -103,7 +103,7 @@ async def test_get_jar_path(mock_maven_repo):
 @pytest.mark.asyncio
 async def test_get_sources_jar_path(mock_maven_repo):
     """测试获取 sources JAR 文件路径"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     sources_jar_path = server._get_sources_jar_path("org.example", "test-lib", "1.0.0")
     
@@ -115,7 +115,7 @@ async def test_get_sources_jar_path(mock_maven_repo):
 @pytest.mark.asyncio
 async def test_jar_not_found(mock_maven_repo):
     """测试 JAR 文件不存在的情况"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     result = await server._read_jar_source(
         group_id="org.example",
@@ -132,7 +132,7 @@ async def test_jar_not_found(mock_maven_repo):
 @pytest.mark.asyncio
 async def test_max_lines_limit(mock_maven_repo):
     """测试行数限制功能"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     result = await server._read_jar_source(
         group_id="org.example",
@@ -191,8 +191,8 @@ async def test_decompiler_caching(tmp_path):
         jar.writestr("com/example/TestClass.class", class_bytes)
     
     # Create cache directory and decompiled JAR (simulate already decompiled situation)
-    # The cache directory structure should be: <jar-dir>/easy-jar-reader/<original-jar-name>.jar
-    cache_dir = artifact_path / "easy-jar-reader"
+    # The cache directory structure should be: <jar-dir>/easy-code-reader/<original-jar-name>.jar
+    cache_dir = artifact_path / "easy-code-reader"
     cache_dir.mkdir(parents=True)
     
     # Create a decompiled JAR with .java source
@@ -207,7 +207,7 @@ public class TestClass {
         zf.writestr("com/example/TestClass.java", cached_content)
     
     # Initialize server and attempt decompilation
-    server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     
     # Call decompilation (should read from cache)
     decompiled_code = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
@@ -222,7 +222,7 @@ public class TestClass {
 @pytest.mark.asyncio
 async def test_input_validation(mock_maven_repo):
     """测试输入验证"""
-    server = EasyJarReaderServer(maven_repo_path=str(mock_maven_repo))
+    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
     
     # 测试空 group_id
     result = await server._read_jar_source(

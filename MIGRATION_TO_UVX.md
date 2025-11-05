@@ -7,7 +7,7 @@
 ## 更改内容
 
 ### 1. 删除的文件
-- `bin/easy-jar-reader.js` - npm 启动脚本（已删除整个 bin 目录）
+- `bin/easy-code-reader.js` - npm 启动脚本（已删除整个 bin 目录）
 - `package.json` - npm 包配置文件
 
 ### 2. 修改的文件
@@ -17,10 +17,10 @@
 
 ```toml
 [project.scripts]
-easy-jar-reader = "easy_jar_reader.__main__:main"
+easy-code-reader = "easy_code_reader.__main__:main"
 ```
 
-#### src/easy_jar_reader/__main__.py
+#### src/easy_code_reader/__main__.py
 - 重命名 `main` 函数导入为 `server_main`
 - 新增 `main()` 函数作为脚本入口点
 - 保持命令行参数解析逻辑不变
@@ -37,10 +37,10 @@ easy-jar-reader = "easy_jar_reader.__main__:main"
 
 ```bash
 # 默认 Maven 仓库
-uvx easy-jar-reader
+uvx easy-code-reader
 
 # 自定义 Maven 仓库
-uvx easy-jar-reader --maven-repo /path/to/maven/repository
+uvx easy-code-reader --maven-repo /path/to/maven/repository
 ```
 
 ### Claude Desktop 配置（推荐）
@@ -48,10 +48,10 @@ uvx easy-jar-reader --maven-repo /path/to/maven/repository
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
       "args": [
-        "easy-jar-reader",
+        "easy-code-reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -61,7 +61,7 @@ uvx easy-jar-reader --maven-repo /path/to/maven/repository
 }
 ```
 
-注意：不要使用 `-m` 参数，uvx 会自动找到 `easy-jar-reader` 包并执行其脚本入口点。
+注意：不要使用 `-m` 参数，uvx 会自动找到 `easy-code-reader` 包并执行其脚本入口点。
 
 ## 优势
 
@@ -75,8 +75,8 @@ uvx easy-jar-reader --maven-repo /path/to/maven/repository
 
 迁移后仍然支持以下启动方式：
 
-1. Python 模块方式：`python -m easy_jar_reader`
-2. 直接命令方式（安装后）：`easy-jar-reader`
-3. uvx 方式（推荐）：`uvx easy-jar-reader`
+1. Python 模块方式：`python -m easy_code_reader`
+2. 直接命令方式（安装后）：`easy-code-reader`
+3. uvx 方式（推荐）：`uvx easy-code-reader`
 
 所有方式都支持 `--maven-repo` 参数来指定自定义 Maven 仓库路径。

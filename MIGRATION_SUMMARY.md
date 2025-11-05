@@ -3,7 +3,7 @@
 ## ✅ 完成的工作
 
 ### 1. 删除的文件
-- ✅ `bin/easy-jar-reader.js` - npm 启动脚本（整个 bin 目录已删除）
+- ✅ `bin/easy-code-reader.js` - npm 启动脚本（整个 bin 目录已删除）
 - ✅ `package.json` - npm 包配置文件
 
 ### 2. 修改的文件
@@ -12,22 +12,22 @@
 **新增内容**:
 ```toml
 [project.scripts]
-easy-jar-reader = "easy_jar_reader.__main__:main"
+easy-code-reader = "easy_code_reader.__main__:main"
 
 [tool.setuptools]
-packages = ["easy_jar_reader"]
+packages = ["easy_code_reader"]
 package-dir = {"" = "src"}
 ```
 
 **说明**: 
-- 添加了脚本入口点，使包可以通过 `uvx easy-jar-reader` 运行
+- 添加了脚本入口点，使包可以通过 `uvx easy-code-reader` 运行
 - 改进了 setuptools 配置以支持可编辑安装
 
-#### ✅ `src/easy_jar_reader/__main__.py`
+#### ✅ `src/easy_code_reader/__main__.py`
 **修改内容**:
 - 重命名导入：`from .server import main` → `from .server import main as server_main`
 - 新增 `main()` 函数作为公开的入口点
-- 保持向后兼容：仍支持 `python -m easy_jar_reader` 运行方式
+- 保持向后兼容：仍支持 `python -m easy_code_reader` 运行方式
 
 #### ✅ `README.md`
 **更新内容**:
@@ -51,11 +51,11 @@ package-dir = {"" = "src"}
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
       "args": [
         "-m", 
-        "easy_jar_reader",
+        "easy_code_reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -69,10 +69,10 @@ package-dir = {"" = "src"}
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
       "args": [
-        "easy-jar-reader",
+        "easy-code-reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -90,21 +90,21 @@ package-dir = {"" = "src"}
 
 ### 1. uvx（推荐 - 开箱即用）
 ```bash
-uvx easy-jar-reader
-uvx easy-jar-reader --maven-repo /path/to/maven
+uvx easy-code-reader
+uvx easy-code-reader --maven-repo /path/to/maven
 ```
 
 ### 2. 直接命令（需先安装）
 ```bash
-pip install easy-jar-reader
-easy-jar-reader
-easy-jar-reader --maven-repo /path/to/maven
+pip install easy-code-reader
+easy-code-reader
+easy-code-reader --maven-repo /path/to/maven
 ```
 
 ### 3. Python 模块方式
 ```bash
-python -m easy_jar_reader
-python -m easy_jar_reader --maven-repo /path/to/maven
+python -m easy_code_reader
+python -m easy_code_reader --maven-repo /path/to/maven
 ```
 
 ## 🚀 优势
@@ -117,7 +117,7 @@ python -m easy_jar_reader --maven-repo /path/to/maven
 
 ## 📝 下一步建议
 
-1. **测试配置**: 在 Python 3.10+ 环境中测试 `uvx easy-jar-reader`
+1. **测试配置**: 在 Python 3.10+ 环境中测试 `uvx easy-code-reader`
 2. **更新发布**: 如果项目已发布到 PyPI，需要发布新版本
 3. **通知用户**: 更新项目说明，告知用户新的推荐使用方式
 4. **清理历史**: 考虑更新 Git 历史中的相关说明
@@ -144,7 +144,7 @@ python -m easy_jar_reader --maven-repo /path/to/maven
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 测试运行
-uvx easy-jar-reader --help
+uvx easy-code-reader --help
 ```
 
 ## 📄 相关文档

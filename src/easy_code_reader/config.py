@@ -1,5 +1,5 @@
 """
-Easy JAR Reader MCP 服务器配置模块
+Easy Code Reader MCP 服务器配置模块
 
 提供配置设置，包括 Maven 仓库位置、反编译器设置等。
 """
@@ -11,7 +11,7 @@ from typing import Optional
 
 class Config:
     """
-    Easy JAR Reader MCP 服务器配置类
+    Easy Code Reader MCP 服务器配置类
     
     配置项包括：
     - Maven 仓库位置和路径设置
@@ -29,7 +29,7 @@ class Config:
         MAVEN_HOME = Path(os.environ["MAVEN_REPO"])
     
     # 服务器基础配置
-    SERVER_NAME: str = "easy-jar-reader"
+    SERVER_NAME: str = "easy-code-reader"
     SERVER_VERSION: str = "0.1.0"
     
     # 反编译器设置

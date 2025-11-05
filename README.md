@@ -1,13 +1,13 @@
-# Easy JAR Reader
+# Easy Code Reader
 
 一个用于从 Maven 依赖中读取 Java 源代码的 MCP (Model Context Protocol) 服务器。
 
-[![PyPI version](https://badge.fury.io/py/easy-jar-reader.svg)](https://badge.fury.io/py/easy-jar-reader)
-[![Python Version](https://img.shields.io/pypi/pyversions/easy-jar-reader)](https://pypi.org/project/easy-jar-reader/)
+[![PyPI version](https://badge.fury.io/py/easy-code-reader.svg)](https://badge.fury.io/py/easy-code-reader)
+[![Python Version](https://img.shields.io/pypi/pyversions/easy-code-reader)](https://pypi.org/project/easy-code-reader/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **📢 发布状态**: 
-> - ✅ **已发布到 PyPI** - 可以直接使用 `uvx easy-jar-reader` 开箱即用
+> - ✅ **已发布到 PyPI** - 可以直接使用 `uvx easy-code-reader` 开箱即用
 > - 🔄 **未发布到 PyPI** - 需要先从 GitHub 安装（见下方说明）
 >
 > 请根据实际发布状态选择对应的安装方式。
@@ -17,7 +17,7 @@
 - 📦 **从 Maven 仓库读取源代码**：自动从本地 Maven 仓库（`~/.m2/repository`）中查找和读取 JAR 包源代码
 - 🔍 **智能源码提取**：优先从 sources jar 提取源码，如果不存在则自动反编译 class 文件
 - 🛠️ **Fernflower 反编译器支持**：使用 IntelliJ IDEA 的 Fernflower 反编译器
-- ⚡ **智能缓存机制**：反编译结果缓存在 JAR 包同目录的 `easy-jar-reader/` 下，避免重复反编译
+- ⚡ **智能缓存机制**：反编译结果缓存在 JAR 包同目录的 `easy-code-reader/` 下，避免重复反编译
 - ⚙️ **自定义 Maven 路径**：支持配置自定义的 Maven 仓库路径
 - 📄 **智能内容管理**：自动摘要大型源文件，支持行数限制
 
@@ -37,10 +37,10 @@
 
 ```bash
 # 无需安装，直接运行
-uvx easy-jar-reader
+uvx easy-code-reader
 
 # 或指定自定义 Maven 仓库
-uvx easy-jar-reader --maven-repo /path/to/maven/repository
+uvx easy-code-reader --maven-repo /path/to/maven/repository
 ```
 
 #### 首次使用 uv？
@@ -64,17 +64,17 @@ pip install uv
 
 ```bash
 # 使用 uv 安装（推荐）
-uv pip install easy-jar-reader
+uv pip install easy-code-reader
 
 # 或使用 pip 安装
-pip install easy-jar-reader
+pip install easy-code-reader
 ```
 
 安装后可以直接运行：
 
 ```bash
-easy-jar-reader
-easy-jar-reader --maven-repo /path/to/maven/repository
+easy-code-reader
+easy-code-reader --maven-repo /path/to/maven/repository
 ```
 
 ### 🔧 方式 3: 从 GitHub 安装（当前可用）
@@ -83,10 +83,10 @@ easy-jar-reader --maven-repo /path/to/maven/repository
 
 ```bash
 # 使用 uv 安装
-uv pip install git+https://github.com/FangYuan33/easy-jar-reader.git
+uv pip install git+https://github.com/FangYuan33/easy-code-reader.git
 
 # 或使用 pip 安装
-pip install git+https://github.com/FangYuan33/easy-jar-reader.git
+pip install git+https://github.com/FangYuan33/easy-code-reader.git
 ```
 
 ### 🛠️ 方式 4: 本地开发安装
@@ -95,8 +95,8 @@ pip install git+https://github.com/FangYuan33/easy-jar-reader.git
 
 ```bash
 # 克隆仓库
-git clone https://github.com/FangYuan33/easy-jar-reader.git
-cd easy-jar-reader
+git clone https://github.com/FangYuan33/easy-code-reader.git
+cd easy-code-reader
 
 # 使用 uv 安装
 uv pip install -e .
@@ -114,17 +114,17 @@ pip install -e ".[dev]"
 
 ### 快速开始（使用 uvx - 推荐）
 
-使用 `uvx` 可以直接运行 Easy JAR Reader，无需手动安装：
+使用 `uvx` 可以直接运行 Easy Code Reader，无需手动安装：
 
 ```bash
 # 使用默认 Maven 仓库路径 (~/.m2/repository)
-uvx easy-jar-reader
+uvx easy-code-reader
 
 # 指定自定义 Maven 仓库路径
-uvx easy-jar-reader --maven-repo /path/to/your/maven/repository
+uvx easy-code-reader --maven-repo /path/to/your/maven/repository
 
 # 查看帮助信息
-uvx easy-jar-reader --help
+uvx easy-code-reader --help
 ```
 
 ### 使用已安装的包
@@ -133,19 +133,19 @@ uvx easy-jar-reader --help
 
 ```bash
 # 使用默认 Maven 仓库路径
-easy-jar-reader
+easy-code-reader
 
 # 指定自定义 Maven 仓库路径
-easy-jar-reader --maven-repo /path/to/your/maven/repository
+easy-code-reader --maven-repo /path/to/your/maven/repository
 
 # 或使用 Python 模块方式运行
-python -m easy_jar_reader
-python -m easy_jar_reader --maven-repo /path/to/your/maven/repository
+python -m easy_code_reader
+python -m easy_code_reader --maven-repo /path/to/your/maven/repository
 ```
 
 ### 在 MCP 客户端中配置
 
-Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户端（如 Claude Desktop）集成。
+Easy Code Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户端（如 Claude Desktop）集成。
 
 #### Claude Desktop 配置
 
@@ -159,9 +159,9 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
-      "args": ["easy-jar-reader"],
+      "args": ["easy-code-reader"],
       "env": {}
     }
   }
@@ -173,10 +173,10 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "uvx",
       "args": [
-        "easy-jar-reader",
+        "easy-code-reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -191,8 +191,8 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
-      "command": "easy-jar-reader",
+    "easy-code-reader": {
+      "command": "easy-code-reader",
       "args": [],
       "env": {}
     }
@@ -205,9 +205,9 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "python",
-      "args": ["-m", "easy_jar_reader"],
+      "args": ["-m", "easy_code_reader"],
       "env": {}
     }
   }
@@ -219,11 +219,11 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 ```json
 {
   "mcpServers": {
-    "easy-jar-reader": {
+    "easy-code-reader": {
       "command": "python",
       "args": [
         "-m", 
-        "easy_jar_reader",
+        "easy_code_reader",
         "--maven-repo",
         "/custom/path/to/maven/repository"
       ],
@@ -273,9 +273,9 @@ Easy JAR Reader 实现了 Model Context Protocol，可以与支持 MCP 的客户
 
 ## 反编译器
 
-Easy JAR Reader 使用 **Fernflower** 反编译器（IntelliJ IDEA 使用的反编译器）。
+Easy Code Reader 使用 **Fernflower** 反编译器（IntelliJ IDEA 使用的反编译器）。
 
-反编译后的文件会被缓存在 JAR 包所在目录的 `easy-jar-reader/` 子目录中，例如：
+反编译后的文件会被缓存在 JAR 包所在目录的 `easy-code-reader/` 子目录中，例如：
 
 如果 JAR 包位置为：
 ```
@@ -284,7 +284,7 @@ Easy JAR Reader 使用 **Fernflower** 反编译器（IntelliJ IDEA 使用的反�
 
 反编译后的源文件将存储在：
 ```
-/Users/username/maven/repository/com/example/mylib/1.0.0/easy-jar-reader/mylib-1.0.0/
+/Users/username/maven/repository/com/example/mylib/1.0.0/easy-code-reader/mylib-1.0.0/
 ```
 
 这样可以避免重复反编译相同的 JAR 包，提高性能。
@@ -317,8 +317,8 @@ pytest tests/test_jar_reader.py -v
 ### 项目结构
 
 ```
-easy-jar-reader/
-├── src/easy_jar_reader/
+easy-code-reader/
+├── src/easy_code_reader/
 │   ├── __init__.py
 │   ├── __main__.py          # 程序入口点
 │   ├── server.py            # MCP 服务器实现

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-演示 Easy JAR Reader 的功能
+演示 Easy Code Reader 的功能
 
-这个脚本展示如何使用 Easy JAR Reader 从 Maven 依赖中读取源代码。
+这个脚本展示如何使用 Easy Code Reader 从 Maven 依赖中读取源代码。
 """
 
 import asyncio
@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from easy_code_reader.server import EasyJarReaderServer
+from easy_code_reader.server import EasyCodeReaderServer
 
 
 def create_demo_maven_repo():
@@ -103,7 +103,7 @@ public class Calculator {
 async def demo_read_source():
     """演示读取源代码"""
     print("=" * 70)
-    print("Easy JAR Reader 功能演示")
+    print("Easy Code Reader 功能演示")
     print("=" * 70)
     print()
     
@@ -114,8 +114,8 @@ async def demo_read_source():
     print()
     
     # 初始化服务器
-    print("2. 初始化 Easy JAR Reader 服务器...")
-    server = EasyJarReaderServer(maven_repo_path=str(maven_repo))
+    print("2. 初始化 Easy Code Reader 服务器...")
+    server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     print(f"   可用的反编译器: {list(server.decompiler.available_decompilers.keys())}")
     print()
     

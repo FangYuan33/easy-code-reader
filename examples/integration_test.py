@@ -26,7 +26,7 @@ async def main():
         return 1
     
     print("=" * 80)
-    print("Easy JAR Reader - Integration Test")
+    print("Easy Code Reader - Integration Test")
     print("=" * 80)
     print(f"\nUsing sample JAR: {sample_jar}\n")
     

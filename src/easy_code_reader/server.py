@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Easy JAR Reader MCP Server
+Easy Code Reader MCP Server
 
 这是一个 Model Context Protocol (MCP) 服务器，用于从 Maven 依赖中读取 Java 源代码。
 
@@ -32,7 +32,7 @@ from .response_manager import ResponseManager
 
 # 配置日志系统
 import os
-log_file = os.path.join(os.path.dirname(__file__), "easy_jar_reader.log")
+log_file = os.path.join(os.path.dirname(__file__), "easy_code_reader.log")
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -45,21 +45,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class EasyJarReaderServer:
+class EasyCodeReaderServer:
     """
-    Easy JAR Reader MCP 服务器
+    Easy Code Reader MCP 服务器
     
     提供从 Maven 依赖中读取 Java 源代码的功能。
     """
     
     def __init__(self, maven_repo_path: Optional[str] = None):
         """
-        初始化 Easy JAR Reader MCP 服务器
+        初始化 Easy Code Reader MCP 服务器
         
         参数:
             maven_repo_path: 自定义 Maven 仓库路径（可选）
         """
-        logger.info("正在初始化 Easy JAR Reader MCP 服务器...")
+        logger.info("正在初始化 Easy Code Reader MCP 服务器...")
         
         # 创建 MCP 服务器实例
         self.server = Server(Config.SERVER_NAME)
@@ -91,7 +91,7 @@ class EasyJarReaderServer:
         
         # 设置 MCP 服务器处理程序
         self.setup_handlers()
-        logger.info("Easy JAR Reader MCP 服务器初始化完成!")
+        logger.info("Easy Code Reader MCP 服务器初始化完成!")
     
     def setup_handlers(self):
         """设置 MCP 服务器处理程序"""
@@ -286,7 +286,7 @@ class EasyJarReaderServer:
     
     async def run(self):
         """运行 MCP 服务器"""
-        logger.info("Starting Easy JAR Reader MCP Server...")
+        logger.info("Starting Easy Code Reader MCP Server...")
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(
                 read_stream,
@@ -302,7 +302,7 @@ async def main(maven_repo_path: Optional[str] = None):
     参数:
         maven_repo_path: 自定义 Maven 仓库路径（可选）
     """
-    server = EasyJarReaderServer(maven_repo_path=maven_repo_path)
+    server = EasyCodeReaderServer(maven_repo_path=maven_repo_path)
     await server.run()
 
 
