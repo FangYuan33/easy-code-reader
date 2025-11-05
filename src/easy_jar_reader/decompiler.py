@@ -43,6 +43,7 @@ class JavaDecompiler:
 
             # 首先检查包内的 decompilers/ 目录（用于已安装的包）
             fernflower_path = current_module_dir / "decompilers" / "fernflower.jar"
+            logger.info(f"尝试从包内查找 Fernflower: {fernflower_path}")
             if fernflower_path.exists():
                 logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
                 return fernflower_path
@@ -50,11 +51,40 @@ class JavaDecompiler:
             # 回退到检查项目根目录的 decompilers/（用于开发环境）
             project_root = current_module_dir.parent.parent
             fernflower_path = project_root / "decompilers" / "fernflower.jar"
+            logger.info(f"尝试从项目根目录查找 Fernflower: {fernflower_path}")
             if fernflower_path.exists():
                 logger.info(f"找到 Fernflower 反编译器: {fernflower_path}")
                 return fernflower_path
         except Exception as e:
             logger.debug(f"Fernflower 检测失败: {e}")
+        
+        # 调试信息：在返回 None 前显示详细的搜索信息
+        logger.warning("🔍 Fernflower 检测失败，显示调试信息:")
+        try:
+            current_module_dir = Path(__file__).parent
+            project_root = current_module_dir.parent.parent
+            
+            logger.info(f"  📂 当前模块目录: {current_module_dir}")
+            logger.info(f"  🏠 项目根目录: {project_root}")
+            logger.info(f"  💼 当前工作目录: {Path.cwd()}")
+            
+            # 检查并显示相关目录内容
+            if current_module_dir.exists():
+                logger.info(f"  📁 模块目录内容: {list(current_module_dir.iterdir())}")
+            
+            if project_root.exists():
+                logger.info(f"  📁 项目根目录内容: {list(project_root.iterdir())}")
+                decompilers_dir = project_root / "decompilers"
+                if decompilers_dir.exists():
+                    logger.info(f"  📁 decompilers 目录内容: {list(decompilers_dir.iterdir())}")
+            
+            # 递归搜索所有 fernflower.jar 文件
+            logger.info("  🔍 递归搜索所有 fernflower.jar 文件:")
+            for jar_file in project_root.rglob("fernflower.jar"):
+                logger.info(f"    🎯 发现: {jar_file}")
+                
+        except Exception as debug_e:
+            logger.debug(f"调试信息收集失败: {debug_e}")
         
         return None
     
