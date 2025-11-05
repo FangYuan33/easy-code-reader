@@ -258,6 +258,7 @@ class EasyCodeReaderServer:
                                  project_dir: Optional[str] = None) -> List[TextContent]:
         """
         从本地项目目录中读取代码
+        支持多模块项目（Maven/Gradle），会递归搜索子模块
         
         参数:
             project_name: 项目名称
@@ -294,21 +295,15 @@ class EasyCodeReaderServer:
         # 尝试查找文件
         # 1. 如果 class_name 看起来像是路径（包含 / 或常见文件扩展名），直接使用
         if '/' in class_name or class_name.endswith('.java') or class_name.endswith('.kt'):
+            # 先在项目根目录查找
             file_path = project_path / class_name
             if file_path.exists() and file_path.is_file():
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                        code = f.read()
-                    result = {
-                        "project_name": project_name,
-                        "class_name": class_name,
-                        "file_path": str(file_path),
-                        "code": code
-                    }
-                    return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-                except Exception as e:
-                    logger.error(f"Error reading file: {e}", exc_info=True)
-                    return [TextContent(type="text", text=f"读取文件时出错: {str(e)}")]
+                return await self._return_file_content(project_name, class_name, file_path)
+            
+            # 在子模块中查找
+            result = self._search_in_modules(project_path, class_name)
+            if result:
+                return await self._return_file_content(project_name, class_name, result)
         
         # 2. 将类名转换为路径，搜索可能的源文件
         # 支持 Java 类名格式: com.example.MyClass -> com/example/MyClass.java
@@ -324,29 +319,81 @@ class EasyCodeReaderServer:
             f"{class_path}.kt",
         ]
         
-        # 尝试各种路径模式
+        # 尝试各种路径模式 - 先在项目根目录
         for pattern in search_patterns:
             file_path = project_path / pattern
             if file_path.exists() and file_path.is_file():
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                        code = f.read()
-                    result = {
-                        "project_name": project_name,
-                        "class_name": class_name,
-                        "file_path": str(file_path),
-                        "code": code
-                    }
-                    return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-                except Exception as e:
-                    logger.error(f"Error reading file: {e}", exc_info=True)
-                    return [TextContent(type="text", text=f"读取文件时出错: {str(e)}")]
+                return await self._return_file_content(project_name, class_name, file_path)
+        
+        # 在子模块中搜索
+        for pattern in search_patterns:
+            result = self._search_in_modules(project_path, pattern)
+            if result:
+                return await self._return_file_content(project_name, class_name, result)
         
         # 如果找不到文件，返回错误信息
         return [TextContent(
             type="text",
             text=f"错误: 在项目 {project_name} 中未找到类 {class_name}，尝试的路径包括: {', '.join(search_patterns)}"
         )]
+    
+    def _search_in_modules(self, project_path: Path, relative_path: str) -> Optional[Path]:
+        """
+        在多模块项目的子模块中搜索文件
+        
+        参数:
+            project_path: 项目根目录路径
+            relative_path: 相对路径（如 src/main/java/com/example/MyClass.java）
+        
+        返回:
+            找到的文件路径，未找到则返回 None
+        """
+        try:
+            # 查找所有子目录
+            for subdir in project_path.iterdir():
+                # 跳过隐藏目录和常见的非模块目录
+                if not subdir.is_dir() or subdir.name.startswith('.') or subdir.name in ['target', 'build', 'node_modules', 'dist']:
+                    continue
+                
+                # 检查是否是 Maven 或 Gradle 模块（包含 pom.xml 或 build.gradle）
+                if not ((subdir / 'pom.xml').exists() or (subdir / 'build.gradle').exists() or (subdir / 'build.gradle.kts').exists()):
+                    continue
+                
+                # 在模块中查找文件
+                file_path = subdir / relative_path
+                if file_path.exists() and file_path.is_file():
+                    logger.info(f"在子模块 {subdir.name} 中找到文件: {file_path}")
+                    return file_path
+        except Exception as e:
+            logger.warning(f"搜索子模块时出错: {e}")
+        
+        return None
+    
+    async def _return_file_content(self, project_name: str, class_name: str, file_path: Path) -> List[TextContent]:
+        """
+        读取文件内容并返回
+        
+        参数:
+            project_name: 项目名称
+            class_name: 类名
+            file_path: 文件路径
+        
+        返回:
+            包含文件内容的响应
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                code = f.read()
+            result = {
+                "project_name": project_name,
+                "class_name": class_name,
+                "file_path": str(file_path),
+                "code": code
+            }
+            return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
+        except Exception as e:
+            logger.error(f"Error reading file: {e}", exc_info=True)
+            return [TextContent(type="text", text=f"读取文件时出错: {str(e)}")]
     
     async def _list_all_project(self, project_dir: Optional[str] = None) -> List[TextContent]:
         """

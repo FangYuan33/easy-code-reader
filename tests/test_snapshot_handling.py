@@ -110,19 +110,14 @@ def test_cleanup_old_snapshot_cache():
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_base_dir = Path(tmpdir)
         
-        # 创建多个 SNAPSHOT 缓存目录
-        old_cache1 = cache_base_dir / "test-artifact-1.0.11-20251028.120000-1"
-        old_cache2 = cache_base_dir / "test-artifact-1.0.11-20251029.100000-5"
-        current_cache = cache_base_dir / "test-artifact-1.0.11-20251030.085053-10"
+        # 创建多个 SNAPSHOT 缓存 jar 文件
+        old_cache1 = cache_base_dir / "test-artifact-1.0.11-20251028.120000-1.jar"
+        old_cache2 = cache_base_dir / "test-artifact-1.0.11-20251029.100000-5.jar"
+        current_cache = cache_base_dir / "test-artifact-1.0.11-20251030.085053-10.jar"
         
-        old_cache1.mkdir()
-        old_cache2.mkdir()
-        current_cache.mkdir()
-        
-        # 在每个目录中创建文件以验证删除
-        (old_cache1 / "test.txt").touch()
-        (old_cache2 / "test.txt").touch()
-        (current_cache / "test.txt").touch()
+        old_cache1.touch()
+        old_cache2.touch()
+        current_cache.touch()
         
         # 执行清理
         decompiler = JavaDecompiler()
@@ -132,7 +127,6 @@ def test_cleanup_old_snapshot_cache():
         assert not old_cache1.exists()
         assert not old_cache2.exists()
         assert current_cache.exists()
-        assert (current_cache / "test.txt").exists()
 
 
 @pytest.mark.asyncio
