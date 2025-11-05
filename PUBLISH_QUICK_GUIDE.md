@@ -56,7 +56,7 @@ bash scripts/publish.sh --test
 
 # 步骤 4: 测试安装
 pip install --index-url https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ easy-jar-reader
+    --extra-index-url https://pypi.org/simple/ easy-code-reader
 
 # 步骤 5: 发布到正式 PyPI
 bash scripts/publish.sh
@@ -80,7 +80,7 @@ twine upload --repository testpypi dist/*
 
 # 5. 测试安装
 pip install --index-url https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ easy-jar-reader
+    --extra-index-url https://pypi.org/simple/ easy-code-reader
 
 # 6. 上传到正式 PyPI
 twine upload dist/*
@@ -126,7 +126,7 @@ git push origin v0.1.0
 - [ ] 创建 Git 标签
 - [ ] 创建 GitHub Release
 - [ ] 更新 README 标记已发布
-- [ ] 测试安装：`uvx easy-jar-reader --help`
+- [ ] 测试安装：`uvx easy-code-reader --help`
 
 ## 📝 版本号规则
 

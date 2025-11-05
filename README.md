@@ -284,7 +284,7 @@ Easy Code Reader 使用 **Fernflower** 反编译器（IntelliJ IDEA 使用的反
 
 反编译后的源文件将存储在：
 ```
-/Users/username/maven/repository/com/example/mylib/1.0.0/easy-jar-reader/mylib-1.0.0/
+/Users/username/maven/repository/com/example/mylib/1.0.0/easy-code-reader/mylib-1.0.0/
 ```
 
 这样可以避免重复反编译相同的 JAR 包，提高性能。

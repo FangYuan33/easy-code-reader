@@ -1,4 +1,4 @@
-"""Tests for Easy JAR Reader MCP Server."""
+"""Tests for Easy Code Reader MCP Server."""
 
 import pytest
 import tempfile

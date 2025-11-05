@@ -1,5 +1,5 @@
 """
-Java 反编译器集成模块 - Easy JAR Reader MCP 服务器
+Java 反编译器集成模块 - Easy Code Reader MCP 服务器
 
 提供 Fernflower 反编译器集成。
 """
@@ -102,9 +102,9 @@ class JavaDecompiler:
             logger.warning("Fernflower 反编译器不可用，使用回退方案")
             return self._fallback_class_info(jar_path, class_name)
         
-        # 获取输出目录（jar 包所在目录的 easy-jar-reader 子目录）
+        # 获取输出目录（jar 包所在目录的 easy-code-reader 子目录）
         jar_dir = jar_path.parent
-        output_base_dir = jar_dir / "easy-jar-reader"
+        output_base_dir = jar_dir / "easy-code-reader"
         
         # 从 jar 文件名中提取名称（不包含扩展名）作为子目录
         output_dir = output_base_dir

@@ -87,7 +87,7 @@ public class HelloWorld {
 async def demo_decompilation():
     """演示反编译功能"""
     print("=" * 70)
-    print("Easy JAR Reader 反编译功能演示")
+    print("Easy Code Reader 反编译功能演示")
     print("=" * 70)
     print()
     
@@ -98,7 +98,7 @@ async def demo_decompilation():
     print()
     
     # 初始化服务器
-    print("2. 初始化 Easy JAR Reader 服务器...")
+    print("2. 初始化 Easy Code Reader 服务器...")
     server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     if server.decompiler.fernflower_jar:
         print(f"   Fernflower 反编译器已就绪")

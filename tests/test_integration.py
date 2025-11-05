@@ -1,4 +1,4 @@
-"""Integration tests for Easy JAR Reader MCP Server."""
+"""Integration tests for Easy Code Reader MCP Server."""
 
 import asyncio
 import json
@@ -191,8 +191,8 @@ async def test_decompiler_caching(tmp_path):
         jar.writestr("com/example/TestClass.class", class_bytes)
     
     # Create cache directory and decompiled JAR (simulate already decompiled situation)
-    # The cache directory structure should be: <jar-dir>/easy-jar-reader/<original-jar-name>.jar
-    cache_dir = artifact_path / "easy-jar-reader"
+    # The cache directory structure should be: <jar-dir>/easy-code-reader/<original-jar-name>.jar
+    cache_dir = artifact_path / "easy-code-reader"
     cache_dir.mkdir(parents=True)
     
     # Create a decompiled JAR with .java source

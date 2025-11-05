@@ -54,12 +54,12 @@ class EasyCodeReaderServer:
     
     def __init__(self, maven_repo_path: Optional[str] = None):
         """
-        初始化 Easy JAR Reader MCP 服务器
+        初始化 Easy Code Reader MCP 服务器
         
         参数:
             maven_repo_path: 自定义 Maven 仓库路径（可选）
         """
-        logger.info("正在初始化 Easy JAR Reader MCP 服务器...")
+        logger.info("正在初始化 Easy Code Reader MCP 服务器...")
         
         # 创建 MCP 服务器实例
         self.server = Server(Config.SERVER_NAME)
@@ -91,7 +91,7 @@ class EasyCodeReaderServer:
         
         # 设置 MCP 服务器处理程序
         self.setup_handlers()
-        logger.info("Easy JAR Reader MCP 服务器初始化完成!")
+        logger.info("Easy Code Reader MCP 服务器初始化完成!")
     
     def setup_handlers(self):
         """设置 MCP 服务器处理程序"""
@@ -286,7 +286,7 @@ class EasyCodeReaderServer:
     
     async def run(self):
         """运行 MCP 服务器"""
-        logger.info("Starting Easy JAR Reader MCP Server...")
+        logger.info("Starting Easy Code Reader MCP Server...")
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(
                 read_stream,

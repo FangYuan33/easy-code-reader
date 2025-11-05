@@ -18,7 +18,7 @@ print(f"Creating sample JAR file: {jar_path}")
 with zipfile.ZipFile(jar_path, 'w', zipfile.ZIP_DEFLATED) as jar:
     # Add a manifest
     manifest_content = """Manifest-Version: 1.0
-Created-By: Easy JAR Reader Example
+Created-By: Easy Code Reader Example
 Main-Class: com.example.Main
 Implementation-Version: 1.0.0
 """
@@ -41,7 +41,7 @@ Implementation-Version: 1.0.0
 # Application Configuration
 app.name=Sample Application
 app.version=1.0.0
-app.author=Easy JAR Reader
+app.author=Easy Code Reader
 """
     jar.writestr("application.properties", properties_content)
     
@@ -50,7 +50,7 @@ app.author=Easy JAR Reader
 Sample JAR File
 ===============
 
-This is a sample JAR file created for testing the Easy JAR Reader MCP Server.
+This is a sample JAR file created for testing the Easy Code Reader MCP Server.
 
 Contents:
 - META-INF/MANIFEST.MF - JAR manifest
