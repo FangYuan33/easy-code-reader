@@ -166,7 +166,7 @@ class JavaDecompiler:
                     class_data = jar.read(class_file_path)
                     
                     # Basic bytecode analysis
-                    info = f"// 反编译不可用\n"
+                    info = "// 反编译不可用\n"
                     info += f"// 类: {class_name}\n"
                     info += f"// 大小: {len(class_data)} 字节\n"
                     info += f"// 位置: {jar_path}\n\n"
