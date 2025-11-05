@@ -275,3 +275,157 @@ async def test_read_project_code_empty_class_name(mock_project_dir):
     assert len(result) == 1
     response_text = result[0].text
     assert "class_name 不能为空" in response_text
+
+
+@pytest.fixture
+def mock_multimodule_project():
+    """创建一个模拟的多模块项目"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_dir = Path(tmpdir)
+        
+        # 创建一个多模块 Maven 项目
+        main_project = project_dir / "bugou-outer"
+        main_project.mkdir()
+        
+        # 创建主项目的 pom.xml
+        (main_project / "pom.xml").write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.jd.bugou</groupId>
+    <artifactId>bugou-outer</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    
+    <modules>
+        <module>bugou-outer-common</module>
+        <module>bugou-outer-service</module>
+        <module>bugou-outer-domain</module>
+    </modules>
+</project>
+""")
+        
+        # 创建 bugou-outer-common 模块
+        common_module = main_project / "bugou-outer-common"
+        common_module.mkdir()
+        (common_module / "pom.xml").write_text("<project></project>")
+        
+        common_java_dir = common_module / "src" / "main" / "java" / "com" / "jd" / "bugou" / "outer" / "common"
+        common_java_dir.mkdir(parents=True)
+        (common_java_dir / "CommonUtils.java").write_text("""package com.jd.bugou.outer.common;
+
+public class CommonUtils {
+    public static String getVersion() {
+        return "1.0.0";
+    }
+}
+""")
+        
+        # 创建 bugou-outer-service 模块
+        service_module = main_project / "bugou-outer-service"
+        service_module.mkdir()
+        (service_module / "pom.xml").write_text("<project></project>")
+        
+        service_java_dir = service_module / "src" / "main" / "java" / "com" / "jd" / "bugou" / "outer" / "service" / "facade" / "impl"
+        service_java_dir.mkdir(parents=True)
+        (service_java_dir / "AddBuyFacadeServiceImpl.java").write_text("""package com.jd.bugou.outer.service.facade.impl;
+
+public class AddBuyFacadeServiceImpl {
+    public void addBuy() {
+        System.out.println("Adding buy operation");
+    }
+}
+""")
+        
+        # 创建 bugou-outer-domain 模块
+        domain_module = main_project / "bugou-outer-domain"
+        domain_module.mkdir()
+        (domain_module / "pom.xml").write_text("<project></project>")
+        
+        domain_java_dir = domain_module / "src" / "main" / "java" / "com" / "jd" / "bugou" / "outer" / "domain"
+        domain_java_dir.mkdir(parents=True)
+        (domain_java_dir / "BuyOrder.java").write_text("""package com.jd.bugou.outer.domain;
+
+public class BuyOrder {
+    private String orderId;
+    private String userId;
+}
+""")
+        
+        # 创建一个非模块目录（没有 pom.xml）
+        (main_project / "target").mkdir()
+        (main_project / "target" / "SomeFile.java").write_text("// Should not be found")
+        
+        yield project_dir
+
+
+@pytest.mark.asyncio
+async def test_read_project_code_multimodule_service(mock_multimodule_project):
+    """测试从多模块项目的 service 模块读取类"""
+    server = EasyCodeReaderServer(project_dir=str(mock_multimodule_project))
+    
+    result = await server._read_project_code(
+        project_name="bugou-outer",
+        class_name="com.jd.bugou.outer.service.facade.impl.AddBuyFacadeServiceImpl"
+    )
+    
+    assert len(result) == 1
+    response_text = result[0].text
+    response_data = json.loads(response_text)
+    
+    assert response_data["project_name"] == "bugou-outer"
+    assert "AddBuyFacadeServiceImpl" in response_data["code"]
+    assert "addBuy()" in response_data["code"]
+    assert "bugou-outer-service" in response_data["file_path"]
+
+
+@pytest.mark.asyncio
+async def test_read_project_code_multimodule_common(mock_multimodule_project):
+    """测试从多模块项目的 common 模块读取类"""
+    server = EasyCodeReaderServer(project_dir=str(mock_multimodule_project))
+    
+    result = await server._read_project_code(
+        project_name="bugou-outer",
+        class_name="com.jd.bugou.outer.common.CommonUtils"
+    )
+    
+    assert len(result) == 1
+    response_text = result[0].text
+    response_data = json.loads(response_text)
+    
+    assert "CommonUtils" in response_data["code"]
+    assert "getVersion()" in response_data["code"]
+    assert "bugou-outer-common" in response_data["file_path"]
+
+
+@pytest.mark.asyncio
+async def test_read_project_code_multimodule_domain(mock_multimodule_project):
+    """测试从多模块项目的 domain 模块读取类"""
+    server = EasyCodeReaderServer(project_dir=str(mock_multimodule_project))
+    
+    result = await server._read_project_code(
+        project_name="bugou-outer",
+        class_name="com.jd.bugou.outer.domain.BuyOrder"
+    )
+    
+    assert len(result) == 1
+    response_text = result[0].text
+    response_data = json.loads(response_text)
+    
+    assert "BuyOrder" in response_data["code"]
+    assert "orderId" in response_data["code"]
+    assert "bugou-outer-domain" in response_data["file_path"]
+
+
+@pytest.mark.asyncio
+async def test_read_project_code_multimodule_not_found(mock_multimodule_project):
+    """测试在多模块项目中找不到类的情况"""
+    server = EasyCodeReaderServer(project_dir=str(mock_multimodule_project))
+    
+    result = await server._read_project_code(
+        project_name="bugou-outer",
+        class_name="com.jd.bugou.outer.NotExistClass"
+    )
+    
+    assert len(result) == 1
+    response_text = result[0].text
+    assert "未找到类" in response_text
