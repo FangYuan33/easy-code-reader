@@ -35,12 +35,15 @@ def test_package_data_location_priority():
     When installed from PyPI, only the package location will exist.
     In development, both locations exist, and package location should be preferred.
     """
+    import importlib.util
+    
     decompiler = JavaDecompiler()
     
-    # Get the path to the decompiler module
-    decompiler_module_path = Path(__file__).parent.parent / "src" / "easy_jar_reader" / "decompiler.py"
-    if decompiler_module_path.exists():
-        # We're in development mode
+    # Get the path to the decompiler module dynamically
+    spec = importlib.util.find_spec('easy_jar_reader.decompiler')
+    if spec and spec.origin:
+        # We can locate the module
+        decompiler_module_path = Path(spec.origin)
         package_jar_path = decompiler_module_path.parent / "decompilers" / "fernflower.jar"
         
         if package_jar_path.exists():
