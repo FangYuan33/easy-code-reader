@@ -74,15 +74,15 @@ public class Main {
 你是一位 Java 专家，请你帮我分析 #file:Main.java 中 namingService.registerInstance 方法的逻辑，这段逻辑的实现在本地项目的 nacos 中，所以你需要在 nacos 读取一系列相关的源码才能了解它的核心逻辑，读取 nacos 项目的代码你可以借助 easy-code-reader MCP，其中包含你可以获取项目信息、项目中所有的文件信息和某个文件的工具
 ```
 
-![img.png](imges/img.png)
+![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img.png)
 
 如图所示，它会不断地根据源码调用链路，读取相关源码并进行分析，最终我们就能了解服务注册的实现细节，会使用到 MCP Easy Code Reader 提供的多个工具 `list_all_project`、`list_project_files` 和 `read_project_code`， 具体调用细节图示如下：
 
-![img.png](imges/img1.png)
+![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img1.png)
 
 最终得到分析结果，节省很多时间：
 
-![img.png](imges/img2.png)
+![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img2.png)
 
 ### 2. 阅读 jar 包源码，根据源码完成代码编写
 
@@ -126,7 +126,7 @@ public class Main {
 
 处理过程如下所示：
 
-![img.png](imges/img3.png)
+![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img3.png)
 
 这样我们便能够快速地了解 `NamingService` 的实现细节，从而完成代码编写工作，节省了大量时间。
 
