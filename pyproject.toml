@@ -1,6 +1,6 @@
 [project]
 name = "easy-code-reader"
-version = "1.0.0"
+version = "1.0.0-releases"
 description = "A powerful MCP (Model Context Protocol) server for intelligently reading Java source code."
 readme = "README.md"
 requires-python = ">=3.10"
