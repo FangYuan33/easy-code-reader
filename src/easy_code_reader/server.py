@@ -242,7 +242,7 @@ class EasyCodeReaderServer:
                     uri="easy-code-reader://guide",
                     name="Easy Code Reader 使用指南",
                     description=(
-                        "Github仓库: [Github - easy-code-reader](https://github.com/FangYuan33/easy-code-reader)"
+                        "Github仓库: https://github.com/FangYuan33/easy-code-reader"
                     ),
                     mimeType="text/markdown"
                 )
