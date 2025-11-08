@@ -113,22 +113,124 @@ which easy-code-reader
 uv tool install --upgrade easy-code-reader
 ```
 
+---
+
 ## 最佳实践
 
-### 与 AI 助手配合使用
+Easy Code Reader 特别适合与 Claude、ChatGPT 等大模型配合使用，接下来以 VSCode 结合 Copilot 为例，介绍一些最佳实践：
 
-Easy Code Reader 特别适合与 Claude、ChatGPT 等 AI 助手配合使用：
+### 1. 跨项目调用，根据调用链路分析源码
 
-1. **阅读第三方库源码**：通过 `read_jar_source` 快速查看 Spring、MyBatis 等框架的实现细节
-2. **分析项目结构**：使用 `list_project_files` 了解大型项目的组织结构
-3. **代码学习**：结合 AI 助手的解释，深入理解复杂的代码逻辑
-4. **问题排查**：读取依赖源码，分析第三方库的行为
+在比较复杂的项目中一般会拆分多个微服务，某些功能的实现可能会跨多个项目调用，如果靠人梳理相关逻辑会比较耗时，所以可以将涉及的代码 clone 到本地后使用 Easy Code Reader MCP 并结合 Code Agent 进行分析。接下来我们以 Nacos 项目为例，假设我们想了解 Nacos 的服务注册功能是如何实现的，可以按照以下步骤操作。
 
-### 最佳实践
+首先，比如我们创建了一个 Nacos Client 客户端，在这段逻辑中执行服务注册：
 
-- **使用 sub_path 参数**：对于大型项目（如 Nacos、Spring Cloud），建议先用 `sub_path` 聚焦到具体模块，避免返回过多文件
-- **先列举再读取**：不确定文件位置时，先用 `list_project_files` 查看文件列表，再用 `read_project_code` 读取
-- **验证项目名**：使用 `list_all_project` 验证项目名称是否正确，避免拼写错误
+```java
+public class Main {
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
+
+    public static void main(String[] args) throws NacosException, InterruptedException {
+        logger.info("开始初始化 Nacos 客户端...");
+
+        Properties properties = new Properties();
+        properties.put(PropertyKeyConst.SERVER_ADDR, "127.0.0.1:8848");
+        properties.put(PropertyKeyConst.NAMESPACE, "7430d8fe-99ce-4b20-866e-ed021a0652c9");
+
+        NamingService namingService = NacosFactory.createNamingService(properties);
+
+        System.out.println("=== 注册服务实例 ===");
+        try {
+            // 注册一个服务实例
+            namingService.registerInstance("test-service0", "127.0.0.1", 8080);
+            // 添加事件监听器
+            namingService.subscribe("test-service", event -> {
+                System.out.println("服务实例变化: " + event);
+            });
+        } catch (Exception e) {
+            System.out.println("服务注册失败(预期，因为服务器可能未启动): " + e.getMessage());
+        }
+
+        TimeUnit.HOURS.sleep(3);
+    }
+}
+```
+
+因为我们创建 Nacos Client 执行服务注册时是由 Nacos 提供的 SDK 直接调用 `NamingService#registerInstance` 方法实现的，我们并不清楚底层是如何实现的，如果我们想要了解实现细节，那么就需要将 Nacos 的源码 Clone 下来，并使用 Easy Code Reader 读取相关源码，下面是一个示例 Prompt：
+
+```text
+你是一位 Java 专家，请你帮我分析 #file:Main.java 中 namingService.registerInstance 方法的逻辑，这段逻辑的实现在本地项目的 nacos 中，所以你需要在 nacos 读取一系列相关的源码才能了解它的核心逻辑，读取 nacos 项目的代码你可以借助 easy-code-reader MCP，其中包含你可以获取项目信息、项目中所有的文件信息和某个文件的工具
+```
+
+![img.png](imges/img.png)
+
+如图所示，它会不断地根据源码调用链路，读取相关源码并进行分析，最终我们就能了解服务注册的实现细节，会使用到 MCP Easy Code Reader 提供的多个工具 `list_all_project`、`list_project_files` 和 `read_project_code`， 具体调用细节图示如下：
+
+![img.png](imges/img1.png)
+
+最终得到分析结果，节省很多时间：
+
+![img.png](imges/img2.png)
+
+### 2. 阅读 jar 包源码，根据源码完成代码编写
+
+在使用第三方或其他外部依赖时，Copilot 或其他 Code Agent 并不能直接读取 jar 包中的源码，往往需要我们将源码内容手动复制到提示词中才能完成，费时费力。在 Easy Code Reader 中提供了 `read_jar_source` 工具来读取 jar 包中的源码，帮我们完成开发实现。我们还是以如下代码为例，现在我想实现多个服务实例的注册，但是我又不了解 `NamingService` 的实现，便可以借助 `read_jar_source` 来完成：
+
+```java
+public class Main {
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
+
+    public static void main(String[] args) throws NacosException, InterruptedException {
+        logger.info("开始初始化 Nacos 客户端...");
+
+        Properties properties = new Properties();
+        properties.put(PropertyKeyConst.SERVER_ADDR, "127.0.0.1:8848");
+        properties.put(PropertyKeyConst.NAMESPACE, "7430d8fe-99ce-4b20-866e-ed021a0652c9");
+
+        NamingService namingService = NacosFactory.createNamingService(properties);
+
+        System.out.println("=== 注册服务实例 ===");
+        try {
+            // 注册一个服务实例
+            namingService.registerInstance("test-service0", "127.0.0.1", 8080);
+            // 添加事件监听器
+            namingService.subscribe("test-service", event -> {
+                System.out.println("服务实例变化: " + event);
+            });
+            // 注册多个服务实例
+
+        } catch (Exception e) {
+            System.out.println("服务注册失败(预期，因为服务器可能未启动): " + e.getMessage());
+        }
+
+        TimeUnit.HOURS.sleep(3);
+    }
+}
+```
+
+```text
+你是一位 Java 技术专家，精通 Nacos 框架，请你帮我在 #file:Main.java 中完成注册多个服务实例的逻辑，在编写代码前，你需要先试用 easy-code-reader 的 read_jar_source 工具读取 com.alibaba.nacos.api.naming.NamingService 的源码信息来了解注册多个服务实例的方法
+```
+
+处理过程如下所示：
+
+![img.png](imges/img3.png)
+
+这样我们便能够快速地了解 `NamingService` 的实现细节，从而完成代码编写工作，节省了大量时间。
+
+### 3. 跨项目阅读源码，根据源码完成本项目实现
+
+在大型项目中，某些功能的实现可能会跨多个模块或微服务，如果部分逻辑已经实现并且后续其他应用的逻辑需要依赖这部分逻辑时，可以借助 Easy Code Reader 读取相关模块的源码，帮助我们更好地理解和实现当前项目的功能，示例 Prompt 如下：
+
+```text
+你是一位 Java 技术专家，现在我要实现 XXX 的业务逻辑，这部分逻辑的实现需要调用本地项目 A 中 XXX 的接口及其实现，请你借助 MCP easy-code-reader 来帮我读取 A 项目中的源码，并帮我实现 XXX 的业务逻辑
+```
+
+当然除了这三种应用场景以外，还可以使用 Easy Code Reader 完成以下事项：
+
+- 异常问题快速溯源：如果有异常信息是外部 jar 包依赖中抛出来的，可以使用 read_jar_source 工具根据异常堆栈日志快速定位异常点
+- 依赖升级影响评估（旧/新版本差异核对）：同样是使用 read_jar_source 工具来完成新旧版本的实现差异，评估升级影响
+- 业务代码逻辑评审：如果业务逻辑开发实现在多个项目中，可以借助读取本地项目代码的工具 `list_all_project`、`list_project_files` 和 `read_project_code`，来分析新增的逻辑是否满足业务要求
+- 新人快速上手多个微服务：借助读取本地项目代码的工具，可以根据接口调用链路快速理清微服务项目代码之间的关系，提高上手速度
 
 ---
 
