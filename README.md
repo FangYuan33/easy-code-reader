@@ -1,7 +1,7 @@
 # Easy Code Reader
 
 <div align="center">
-  <img src="icon.png" alt="Easy Code Reader Icon" width="200"/>
+  <img src="https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/icon.png" alt="Easy Code Reader Icon" width="200"/>
 </div>
 
 <div align="center">
