@@ -153,6 +153,7 @@ public class Main {
 - Python 3.10 或更高版本
 - Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
 
+<a id="quick-start-uvx"></a>
 ## 快速接入（方法一）：使用 uvx（推荐 - 开箱即用）
 
 如果您还没有安装 uv，可以通过以下方式快速安装：
@@ -437,7 +438,7 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 
 ### Q1: spawn uvx ENOENT spawn uvx ENOENT
 
-uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#快速接入（方法一）：使用 uvx（推荐 - 开箱即用）)。
+uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#quick-start-uvx)。
 
 ---
 

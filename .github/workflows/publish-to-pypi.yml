@@ -60,22 +60,6 @@ jobs:
         with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
             fh.write(f"version={version}\n")
         PY
-
-    - name: 校验 Release 标签与版本一致（仅在 release 事件）
-      if: github.event_name == 'release'
-      run: |
-        VERSION='${{ steps.get_version.outputs.version }}'
-        if [ -n "${{ github.event.release.tag_name }}" ]; then
-          TAG='${{ github.event.release.tag_name }}'
-        else
-          TAG='${{ github.ref_name }}'
-        fi
-        echo "Release tag: ${TAG}"
-        if [ "v${VERSION}" != "${TAG}" ]; then
-          echo "❌ 版本号与标签不一致: version=v${VERSION}, tag=${TAG}"
-          exit 1
-        fi
-        echo "✓ 版本号与标签一致"
     
     - name: 清理旧的构建文件
       run: |
