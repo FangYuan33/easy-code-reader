@@ -18,6 +18,10 @@ jobs:
   build-and-publish:
     name: 构建并发布 Python 包
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PACKAGE_NAME: easy-code-reader
     
     steps:
     - name: 检出代码
@@ -38,14 +42,40 @@ jobs:
     - name: 安装构建工具
       run: |
         python -m pip install --upgrade pip
-        pip install build twine
+        pip install build twine tomli
     
-    - name: 获取版本信息
+    - name: 获取版本信息（从 pyproject.toml 解析）
       id: get_version
       run: |
-        VERSION=$(grep "^version = " pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "📦 版本号: $VERSION"
+        python - <<'PY'
+        import os
+        try:
+            import tomllib  # Py3.11+
+        except ModuleNotFoundError:
+            import tomli as tomllib  # Py3.10 fallback
+        with open('pyproject.toml', 'rb') as f:
+            data = tomllib.load(f)
+        version = data['project']['version']
+        print(f"📦 版本号: {version}")
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+            fh.write(f"version={version}\n")
+        PY
+
+    - name: 校验 Release 标签与版本一致（仅在 release 事件）
+      if: github.event_name == 'release'
+      run: |
+        VERSION='${{ steps.get_version.outputs.version }}'
+        if [ -n "${{ github.event.release.tag_name }}" ]; then
+          TAG='${{ github.event.release.tag_name }}'
+        else
+          TAG='${{ github.ref_name }}'
+        fi
+        echo "Release tag: ${TAG}"
+        if [ "v${VERSION}" != "${TAG}" ]; then
+          echo "❌ 版本号与标签不一致: version=v${VERSION}, tag=${TAG}"
+          exit 1
+        fi
+        echo "✓ 版本号与标签一致"
     
     - name: 清理旧的构建文件
       run: |
@@ -72,7 +102,7 @@ jobs:
         echo "📤 上传到测试 PyPI..."
         twine upload --repository testpypi dist/*
         echo "✓ 发布成功！"
-        echo "📦 包地址: https://test.pypi.org/project/easy-jar-reader/${{ steps.get_version.outputs.version }}/"
+        echo "📦 包地址: https://test.pypi.org/project/${PACKAGE_NAME}/${{ steps.get_version.outputs.version }}/"
     
     - name: 发布到正式 PyPI
       if: github.event.inputs.test_pypi != 'true'
@@ -83,7 +113,7 @@ jobs:
         echo "📤 上传到正式 PyPI..."
         twine upload dist/*
         echo "✓ 发布成功！🎉"
-        echo "📦 包地址: https://pypi.org/project/easy-jar-reader/${{ steps.get_version.outputs.version }}/"
+        echo "📦 包地址: https://pypi.org/project/${PACKAGE_NAME}/${{ steps.get_version.outputs.version }}/"
     
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
@@ -96,22 +126,22 @@ jobs:
         echo "## 🎉 发布成功！" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**版本:** ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-        echo "**包名:** easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+        echo "**包名:** ${PACKAGE_NAME}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ github.event.inputs.test_pypi }}" == "true" ]; then
           echo "**仓库:** 测试 PyPI" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 安装测试" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo "pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ ${PACKAGE_NAME}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
         else
           echo "**仓库:** 正式 PyPI" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 安装" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "pip install easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo "pip install ${PACKAGE_NAME}" >> $GITHUB_STEP_SUMMARY
           echo "# 或" >> $GITHUB_STEP_SUMMARY
-          echo "uvx easy-jar-reader" >> $GITHUB_STEP_SUMMARY
+          echo "uvx ${PACKAGE_NAME}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
         fi
