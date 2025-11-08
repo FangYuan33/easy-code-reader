@@ -504,5 +504,5 @@ Apache License 2.0，详见 [LICENSE](LICENSE) 文件。
 
 ## 巨人的肩膀
 
-- [Github: maven-decoder-mcp](https://github.com/salitaba/maven-decoder-mcp) 灵感来源
+- [Github: maven-decoder-mcp](https://github.com/salitaba/maven-decoder-mcp)
 - [Github: fernflower](https://github.com/JetBrains/fernflower)
