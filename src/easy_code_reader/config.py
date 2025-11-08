@@ -1,12 +1,12 @@
 """
 Easy Code Reader MCP 服务器配置模块
 
-提供配置设置，包括 Maven 仓库位置、反编译器设置等。
+提供配置设置，包括 Maven 仓库位置、服务器信息等。
+支持通过环境变量 MAVEN_HOME、M2_HOME 或 MAVEN_REPO 自定义 Maven 仓库路径。
 """
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
 class Config:
@@ -15,15 +15,17 @@ class Config:
     
     配置项包括：
     - Maven 仓库位置和路径设置
-    - 反编译器配置和优先级
-    - 响应大小限制
+    - 服务器基础信息（名称、版本）
+    - 反编译器配置
     """
     
     # Maven 仓库位置配置
     MAVEN_HOME: Path = Path.home() / ".m2" / "repository"
     
-    # 从环境变量覆盖 Maven 仓库位置
-    if "M2_HOME" in os.environ:
+    # 从环境变量覆盖 Maven 仓库位置（优先级：MAVEN_HOME > M2_HOME > MAVEN_REPO）
+    if "MAVEN_HOME" in os.environ:
+        MAVEN_HOME = Path(os.environ["MAVEN_HOME"]) / "repository"
+    elif "M2_HOME" in os.environ:
         MAVEN_HOME = Path(os.environ["M2_HOME"]) / "repository"
     elif "MAVEN_REPO" in os.environ:
         MAVEN_HOME = Path(os.environ["MAVEN_REPO"])
@@ -32,14 +34,8 @@ class Config:
     SERVER_NAME: str = "easy-code-reader"
     SERVER_VERSION: str = "0.1.0"
     
-    # 反编译器设置
-    DECOMPILER_TIMEOUT: int = 30  # 反编译超时时间（秒）
-    
-    # 响应管理器配置
-    MAX_RESPONSE_SIZE: int = int(os.getenv('MCP_MAX_RESPONSE_SIZE', '50000'))
-    MAX_ITEMS_PER_PAGE: int = int(os.getenv('MCP_MAX_ITEMS_PER_PAGE', '20'))
-    MAX_TEXT_LENGTH: int = int(os.getenv('MCP_MAX_TEXT_LENGTH', '10000'))
-    MAX_LINES: int = int(os.getenv('MCP_MAX_LINES', '500'))
+    # 反编译器设置，反编译超时时间（秒）
+    DECOMPILER_TIMEOUT: int = 30
     
     @classmethod
     def validate(cls) -> bool:

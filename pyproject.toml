@@ -1,15 +1,15 @@
 [project]
 name = "easy-code-reader"
-version = "0.1.3"
-description = "MCP Server for reading Java source code from Maven JAR files with decompilation support"
+version = "0.2.1"
+description = "A powerful MCP (Model Context Protocol) server for intelligently reading Java source code."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "FangYuan33", email = "fangyuan33@example.com"}
+    {name = "FangYuan33", email = "ylwork33@163.com"}
 ]
 maintainers = [
-    {name = "FangYuan33", email = "fangyuan33@example.com"}
+    {name = "FangYuan33", email = "ylwork33@163.com"}
 ]
 keywords = [
     "mcp",
@@ -72,3 +72,4 @@ easy_code_reader = ["py.typed", "decompilers/*.jar"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+

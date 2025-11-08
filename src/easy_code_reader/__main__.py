@@ -1,4 +1,8 @@
-"""Entry point for running the Easy Code Reader MCP server as a module."""
+"""
+Entry point for running the Easy Code Reader MCP server as a module.
+
+支持通过 python -m easy_code_reader 或 uvx easy-code-reader 启动服务器。
+"""
 
 import argparse
 import asyncio
@@ -8,7 +12,7 @@ from .server import main as server_main
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description='Easy Code Reader MCP Server - 从 Maven 依赖中读取 Java 源代码'
+        description='Easy Code Reader MCP Server - 读取 Java 源代码（Maven 依赖和本地项目）'
     )
     parser.add_argument(
         '--maven-repo',
@@ -19,10 +23,11 @@ def parse_args():
     parser.add_argument(
         '--project-dir',
         type=str,
-        help='项目目录路径，用于读取本地项目代码',
+        help='项目目录路径，用于读取本地项目代码（支持多模块项目）',
         default=None
     )
     return parser.parse_args()
+
 
 
 def main():
