@@ -28,93 +28,6 @@ A powerful MCP (Model Context Protocol) server for intelligently reading Java so
 - ⚡ **智能缓存机制**：反编译结果缓存在 JAR 包同目录的 `easy-code-reader/` 下，避免重复反编译
 - 🔄 **SNAPSHOT 版本支持**：智能处理 SNAPSHOT 版本，自动查找带时间戳的最新版本并管理缓存
 
-## 环境要求
-
-- [uv](https://github.com/astral-sh/uv) - Python 包和项目管理工具
-- Python 3.10 或更高版本
-- Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
-
-## 快速接入（方法一）：使用 uvx（推荐 - 开箱即用）
-
-如果您还没有安装 uv，可以通过以下方式快速安装：
-
-```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 或使用 pip
-pip install uv
-```
-
-或者参考 [uv 官网](https://github.com/astral-sh/uv) 进行安装，并配置 uv 的安装路径添加到系统 PATH 中，以便可以直接使用 `uvx` 命令。[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行，参考以下 MCP 客户端配置：
-
-- `--maven-repo`: 指定 Maven 仓库路径，将 `/custom/path/to/maven/repository` 内容替换为本地 Maven 仓库路径即可，不配置默认使用 **MAVEN_HOME** 目录或 `~/.m2/repository`
-- `--project-dir`: 指定本地项目目录路径，将 `/path/to/projects` 替换为实际保存所有项目的路径
-
-```json
-{
-  "mcpServers": {
-    "easy-code-reader": {
-      "command": "uvx",
-      "args": [
-        "easy-code-reader",
-        "--maven-repo",
-        "/custom/path/to/maven/repository",
-        "--project-dir",
-        "/path/to/projects"
-      ],
-      "env": {}
-    }
-  }
-}
-```
-
-将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
-
-## 快速接入（方法二）：使用 uv 安装到本地（不推荐）
-
-如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
-
-```bash
-uv tool install easy-code-reader
-```
-
-安装成功后，执行以下命令获取安装目录：
-
-```bash
-which easy-code-reader
-```
-
-比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端：
-
-```json
-{
-  "mcpServers": {
-    "easy-code-reader": {
-      "command": "/Users/fangyuan/.local/bin/easy-code-reader",
-      "args": [
-        "--maven-repo",
-        "/custom/path/to/maven/repository",
-        "--project-dir",
-        "/path/to/projects"
-      ],
-      "env": {}
-    }
-  }
-}
-```
-
-一般这样操作都能完成安装，后续如果有版本更新，可以通过以下命令进行升级：
-
-```bash
-uv tool install --upgrade easy-code-reader
-```
-
----
-
 ## 最佳实践
 
 Easy Code Reader 特别适合与 Claude、ChatGPT 等大模型配合使用，接下来以 VSCode 结合 Copilot 为例，介绍一些最佳实践：
@@ -234,6 +147,93 @@ public class Main {
 
 ---
 
+## 环境要求
+
+- [uv](https://github.com/astral-sh/uv) - Python 包和项目管理工具
+- Python 3.10 或更高版本
+- Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
+
+## 快速接入（方法一）：使用 uvx（推荐 - 开箱即用）
+
+如果您还没有安装 uv，可以通过以下方式快速安装：
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 或使用 pip
+pip install uv
+```
+
+或者参考 [uv 官网](https://github.com/astral-sh/uv) 进行安装，并配置 uv 的安装路径添加到系统 PATH 中，以便可以直接使用 `uvx` 命令。[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行，参考以下 MCP 客户端配置：
+
+- `--maven-repo`: 指定 Maven 仓库路径，将 `/custom/path/to/maven/repository` 内容替换为本地 Maven 仓库路径即可，不配置默认使用 **MAVEN_HOME** 目录或 `~/.m2/repository`
+- `--project-dir`: 指定本地项目目录路径，将 `/path/to/projects` 替换为实际保存所有项目的路径
+
+```json
+{
+  "mcpServers": {
+    "easy-code-reader": {
+      "command": "uvx",
+      "args": [
+        "easy-code-reader",
+        "--maven-repo",
+        "/custom/path/to/maven/repository",
+        "--project-dir",
+        "/path/to/projects"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
+
+## 快速接入（方法二）：使用 uv 安装到本地（不推荐）
+
+如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
+
+```bash
+uv tool install easy-code-reader
+```
+
+安装成功后，执行以下命令获取安装目录：
+
+```bash
+which easy-code-reader
+```
+
+比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "easy-code-reader": {
+      "command": "/Users/fangyuan/.local/bin/easy-code-reader",
+      "args": [
+        "--maven-repo",
+        "/custom/path/to/maven/repository",
+        "--project-dir",
+        "/path/to/projects"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+一般这样操作都能完成安装，后续如果有版本更新，可以通过以下命令进行升级：
+
+```bash
+uv tool install --upgrade easy-code-reader
+```
+
+---
+
 ## 工具说明
 
 Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
@@ -278,8 +278,6 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
   "code": "package org.springframework.core;\n\npublic class SpringVersion {\n    // ...\n}"
 }
 ```
-
----
 
 ### 场景 2: 读取本地项目源代码
 
