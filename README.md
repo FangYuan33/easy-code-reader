@@ -34,7 +34,7 @@ A powerful MCP (Model Context Protocol) server for intelligently reading Java so
 - Python 3.10 或更高版本
 - Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
 
-## 快速接入：使用 uvx（推荐 - 开箱即用）
+## 快速接入（方法一）：使用 uvx（推荐 - 开箱即用）
 
 如果您还没有安装 uv，可以通过以下方式快速安装：
 
@@ -73,6 +73,45 @@ pip install uv
 ```
 
 将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
+
+## 快速接入（方法二）：使用 uv 安装到本地（不推荐）
+
+如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
+
+```bash
+uv tool install easy-code-reader
+```
+
+安装成功后，执行以下命令获取安装目录：
+
+```bash
+which easy-code-reader
+```
+
+比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "easy-code-reader": {
+      "command": "/Users/fangyuan/.local/bin/easy-code-reader",
+      "args": [
+        "--maven-repo",
+        "/custom/path/to/maven/repository",
+        "--project-dir",
+        "/path/to/projects"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+一般这样操作都能完成安装，后续如果有版本更新，可以通过以下命令进行升级：
+
+```bash
+uv tool install --upgrade easy-code-reader
+```
 
 ## 最佳实践
 
