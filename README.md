@@ -140,8 +140,8 @@ public class Main {
 
 当然除了这三种应用场景以外，还可以使用 Easy Code Reader 完成以下事项：
 
-- 异常问题快速溯源：如果有异常信息是外部 jar 包依赖中抛出来的，可以使用 read_jar_source 工具根据异常堆栈日志快速定位异常点
-- 依赖升级影响评估（旧/新版本差异核对）：同样是使用 read_jar_source 工具来完成新旧版本的实现差异，评估升级影响
+- 异常问题快速溯源：如果有异常信息是外部 jar 包依赖中抛出来的，可以使用 `read_jar_source` 工具根据异常堆栈日志快速定位异常点
+- 依赖升级影响评估（旧/新版本差异核对）：同样是使用 `read_jar_source` 工具来完成新旧版本的实现差异，评估升级影响
 - 业务代码逻辑评审：如果业务逻辑开发实现在多个项目中，可以借助读取本地项目代码的工具 `list_all_project`、`list_project_files` 和 `read_project_code`，来分析新增的逻辑是否满足业务要求
 - 新人快速上手多个微服务：借助读取本地项目代码的工具，可以根据接口调用链路快速理清微服务项目代码之间的关系，提高上手速度
 
@@ -232,6 +232,12 @@ which easy-code-reader
 ```bash
 uv tool install --upgrade easy-code-reader
 ```
+
+## 常见问题
+
+### Q1: spawn uvx ENOENT spawn uvx ENOENT
+
+uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#quick-start-uvx)，并尝试重启 IDE 后再启动 MCP Server。
 
 ---
 
@@ -434,14 +440,6 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 
 ---
 
-## 常见问题
-
-### Q1: spawn uvx ENOENT spawn uvx ENOENT
-
-uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#quick-start-uvx)。
-
----
-
 ## 技术细节
 
 ### 项目结构
@@ -488,16 +486,7 @@ Easy Code Reader 支持多个反编译器，并根据 Java 版本自动选择最
 ~/.m2/repository/org/springframework/spring-core/5.3.21/easy-code-reader/spring-core-5.3.21.jar
 ```
 
-缓存文件本身也是一个 JAR 格式的压缩包，包含所有反编译后的 `.java` 文件。
-
-**SNAPSHOT 版本特殊处理：**
-
-- 对于 SNAPSHOT 版本（如 `1.0.0-SNAPSHOT`），Maven 会生成带时间戳的 JAR（如 `artifact-1.0.0-20251030.085053-1.jar`）
-- 系统会自动查找最新的带时间戳版本进行反编译
-- 缓存以规范化名称存储（`artifact-1.0.0-SNAPSHOT.jar`）
-- 当检测到新版本时，会自动清理旧的 SNAPSHOT 缓存
-
-这样可以避免重复反编译相同的 JAR 包，提高性能。
+缓存文件本身也是一个 JAR 格式的压缩包，包含所有反编译后的 `.java` 文件，这样可以避免重复反编译相同的 JAR 包，提高性能。但 **针对 SNAPSHOT 版本需要特殊处理：** 因为 Maven 针对快照版本会生成带时间戳的 JAR（如 `artifact-1.0.0-20251030.085053-1.jar`），Easy Code Reader 会自动查找最新的带时间戳版本进行反编译，并且以缓存以 `artifact-1.0.0-20251030.085053-1.jar` 名称存储，提供版本判断的依据，当检测到新版本时，会自动清理旧的 SNAPSHOT 缓存，生成新的缓存文件。
 
 ## 许可证
 
