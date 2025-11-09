@@ -369,16 +369,16 @@ class JavaDecompiler:
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
                     if java_file_path_in_jar in zf.namelist():
                         logger.info(f"反编译成功: {class_name}")
-                        return zf.read(java_file_path_in_jar).decode('utf-8')
+                        return (zf.read(java_file_path_in_jar).decode('utf-8'), "decompiled")
                     else:
                         logger.error(f"反编译后未找到文件: {java_file_path_in_jar}")
-                        return self._fallback_class_info(jar_path, class_name)
+                        return (self._fallback_class_info(jar_path, class_name), "decompiled")
             except zipfile.BadZipFile as e:
                 logger.error(f"反编译后的 JAR 损坏: {e}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             except Exception as e:
                 logger.error(f"读取反编译结果失败: {e}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
                 
         except Exception as e:
             logger.error(f"Fernflower 反编译失败: {e}", exc_info=True)
