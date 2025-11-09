@@ -62,7 +62,6 @@ async def test_server_initialization(mock_maven_repo):
     
     assert server.maven_home == mock_maven_repo
     assert server.decompiler is not None
-    assert server.response_manager is not None
 
 
 @pytest.mark.asyncio
@@ -82,8 +81,9 @@ async def test_extract_from_sources_jar(mock_maven_repo):
     response_text = result[0].text
     response_data = json.loads(response_text)
     
-    # 验证返回的字段（source字段已被移除）
+    # 验证返回的字段（包含新增的 source_type 字段）
     assert response_data["class_name"] == "org.example.Main"
+    assert response_data["source_type"] == "sources.jar"
     assert "Hello, World!" in response_data["code"]
     assert "public static void main" in response_data["code"]
 
@@ -188,11 +188,12 @@ public class TestClass {
     server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
     
     # Call decompilation (should read from cache)
-    decompiled_code = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
+    code, source_type = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
     
-    # Verify that cached content is returned
-    assert decompiled_code is not None
-    assert "This is from cache" in decompiled_code
+    # Verify that cached content is returned with correct source_type
+    assert code is not None
+    assert "This is from cache" in code
+    assert source_type == "decompiled_cache"
     # Cache JAR should still exist
     assert cached_jar.exists()
 

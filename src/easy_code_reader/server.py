@@ -353,6 +353,7 @@ class EasyCodeReaderServer:
                     result = {
                         "class_name": class_name,
                         "artifact": f"{group_id}:{artifact_id}:{version}",
+                        "source_type": "sources.jar",
                         "code": source_code
                     }
                     
@@ -387,7 +388,8 @@ class EasyCodeReaderServer:
                 if snapshot_jar and snapshot_jar.exists():
                     actual_jar_to_decompile = snapshot_jar
             
-            decompiled_code = self.decompiler.decompile_class(
+            # decompile_class 现在返回 (code, source_type) 元组
+            decompiled_code, source_type = self.decompiler.decompile_class(
                 actual_jar_to_decompile, class_name, cache_jar_name=jar_path.name if actual_jar_to_decompile != jar_path else None
             )
             
@@ -397,6 +399,7 @@ class EasyCodeReaderServer:
             result = {
                 "class_name": class_name,
                 "artifact": f"{group_id}:{artifact_id}:{version}",
+                "source_type": source_type,
                 "code": decompiled_code or "反编译失败"
             }
             

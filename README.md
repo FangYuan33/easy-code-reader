@@ -294,9 +294,23 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 {
   "class_name": "org.springframework.core.SpringVersion",
   "artifact": "org.springframework:spring-core:5.3.21",
+  "source_type": "sources.jar",
   "code": "package org.springframework.core;\n\npublic class SpringVersion {\n    // ...\n}"
 }
 ```
+
+**source_type 字段说明：**
+
+`source_type` 字段标识源码的来源，帮助 AI 助手了解代码的可靠性和新鲜度：
+
+- `"sources.jar"`: 从 Maven 的 sources JAR 文件中提取（最可靠，与发布版本完全一致）
+- `"decompiled"`: 通过反编译器新反编译生成（可能存在反编译不完整的情况）
+- `"decompiled_cache"`: 从之前反编译的缓存中读取（避免重复反编译，提升性能）
+
+💡 **使用建议**：
+- `sources.jar` 来源的代码最准确，可直接作为分析依据
+- `decompiled` 来源的代码可能会有语法糖恢复、泛型擦除等反编译特征
+- `decompiled_cache` 与 `decompiled` 质量相同，只是从缓存读取以提升效率
 
 ### 场景 2: 读取本地项目源代码
 

@@ -126,7 +126,7 @@ class JavaDecompiler:
         
         return None
     
-    def decompile_class(self, jar_path: Path, class_name: str, cache_jar_name: Optional[str] = None) -> Optional[str]:
+    def decompile_class(self, jar_path: Path, class_name: str, cache_jar_name: Optional[str] = None) -> Tuple[Optional[str], str]:
         """
         反编译 JAR 文件中的特定类
         
@@ -144,14 +144,16 @@ class JavaDecompiler:
             cache_jar_name: 缓存使用的 jar 名称（可选），用于 SNAPSHOT 版本的缓存命名
             
         返回:
-            反编译后的源代码字符串，如果失败则返回基本的类信息
+            (源代码字符串, 来源类型) 元组
+            来源类型可能是: "decompiled_cache" (从缓存读取) 或 "decompiled" (新反编译)
+            如果失败，源代码为基本类信息，来源类型为 "decompiled_cache" 或 "decompiled"
         """
         # 选择合适的反编译器
         decompiler_jar, decompiler_type = self._choose_decompiler()
         
         if not decompiler_jar:
             logger.error("没有可用的反编译器")
-            return self._fallback_class_info(jar_path, class_name)
+            return (self._fallback_class_info(jar_path, class_name), "decompiled")
         
         logger.info(f"反编译 {class_name} 使用 {decompiler_type} (Java {self.java_version or 'unknown'})")
         
@@ -185,7 +187,9 @@ class JavaDecompiler:
             try:
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
                     if java_file_path_in_jar in zf.namelist():
-                        return zf.read(java_file_path_in_jar).decode('utf-8')
+                        code = zf.read(java_file_path_in_jar).decode('utf-8')
+                        logger.info(f"从缓存读取: {class_name}")
+                        return (code, "decompiled_cache")
                     else:
                         logger.warning(f"缓存中未找到 {java_file_path_in_jar}，重新反编译")
             except Exception as e:
@@ -196,7 +200,7 @@ class JavaDecompiler:
             output_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             logger.error(f"创建输出目录失败 {output_dir}: {e}")
-            return self._fallback_class_info(jar_path, class_name)
+            return (self._fallback_class_info(jar_path, class_name), "decompiled")
         
         # 执行反编译
         if decompiler_type == 'cfr':
@@ -245,7 +249,7 @@ class JavaDecompiler:
     
     def _decompile_with_cfr(self, jar_path: Path, class_name: str, output_dir: Path,
                            decompiled_jar: Path, java_file_path_in_jar: str, 
-                           cache_name: str) -> Optional[str]:
+                           cache_name: str) -> Tuple[Optional[str], str]:
         """
         使用 CFR 反编译 JAR 文件
         
@@ -273,7 +277,7 @@ class JavaDecompiler:
                     )
                 else:
                     logger.error(f"CFR 反编译失败: {stderr}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             
             # CFR 会将文件按包结构输出到目录中
             # 需要将它们打包成 jar
@@ -294,7 +298,7 @@ class JavaDecompiler:
                 logger.error(f"打包反编译结果失败: {e}")
                 # 清理临时目录
                 shutil.rmtree(temp_output, ignore_errors=True)
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             
             # 清理临时目录
             shutil.rmtree(temp_output, ignore_errors=True)
@@ -303,25 +307,26 @@ class JavaDecompiler:
             try:
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
                     if java_file_path_in_jar in zf.namelist():
+                        code = zf.read(java_file_path_in_jar).decode('utf-8')
                         logger.info(f"反编译成功: {class_name}")
-                        return zf.read(java_file_path_in_jar).decode('utf-8')
+                        return (code, "decompiled")
                     else:
                         logger.error(f"反编译后未找到文件: {java_file_path_in_jar}")
-                        return self._fallback_class_info(jar_path, class_name)
+                        return (self._fallback_class_info(jar_path, class_name), "decompiled")
             except zipfile.BadZipFile as e:
                 logger.error(f"反编译后的 JAR 损坏: {e}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             except Exception as e:
                 logger.error(f"读取反编译结果失败: {e}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
                 
         except Exception as e:
             logger.error(f"CFR 反编译失败: {e}", exc_info=True)
-            return self._fallback_class_info(jar_path, class_name)
+            return (self._fallback_class_info(jar_path, class_name), "decompiled")
     
     def _decompile_with_fernflower(self, jar_path: Path, class_name: str, output_dir: Path,
                                    decompiled_jar: Path, java_file_path_in_jar: str,
-                                   cache_name: str) -> Optional[str]:
+                                   cache_name: str) -> Tuple[Optional[str], str]:
         """
         使用 Fernflower 反编译 JAR 文件
         
@@ -343,7 +348,7 @@ class JavaDecompiler:
                     )
                 else:
                     logger.error(f"Fernflower 反编译失败: {stderr}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             
             # Fernflower 会将输出放在一个与原 jar 同名的 jar 中
             # 如果提供了 cache_jar_name，需要将生成的 jar 重命名
@@ -355,10 +360,10 @@ class JavaDecompiler:
                     fernflower_output_jar.rename(decompiled_jar)
                 else:
                     logger.error(f"Fernflower 未生成预期文件: {fernflower_output_jar}")
-                    return self._fallback_class_info(jar_path, class_name)
+                    return (self._fallback_class_info(jar_path, class_name), "decompiled")
             elif not decompiled_jar.exists():
                 logger.error(f"Fernflower 未生成预期文件: {decompiled_jar}")
-                return self._fallback_class_info(jar_path, class_name)
+                return (self._fallback_class_info(jar_path, class_name), "decompiled")
             
             try:
                 with zipfile.ZipFile(decompiled_jar, 'r') as zf:
@@ -377,7 +382,7 @@ class JavaDecompiler:
                 
         except Exception as e:
             logger.error(f"Fernflower 反编译失败: {e}", exc_info=True)
-            return self._fallback_class_info(jar_path, class_name)
+            return (self._fallback_class_info(jar_path, class_name), "decompiled")
     
     def _is_timestamped_snapshot(self, jar_name: str) -> bool:
         """

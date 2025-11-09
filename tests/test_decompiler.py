@@ -72,6 +72,30 @@ public class TestClass {
                 assert "Hello World!" in content
 
 
+def test_decompiler_returns_tuple():
+    """Test that decompile_class returns (code, source_type) tuple."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        
+        # Create a test JAR
+        test_jar = tmp_path / "test.jar"
+        create_test_jar_with_class(test_jar)
+        
+        decompiler = JavaDecompiler()
+        
+        # Call decompile_class
+        result = decompiler.decompile_class(test_jar, "com.test.TestClass")
+        
+        # Verify it returns a tuple
+        assert isinstance(result, tuple), f"Should return tuple, got {type(result)}"
+        assert len(result) == 2, f"Tuple should have 2 elements, got {len(result)}"
+        
+        code, source_type = result
+        assert isinstance(source_type, str), f"source_type should be string, got {type(source_type)}"
+        assert source_type in ["sources.jar", "decompiled", "decompiled_cache"], \
+            f"source_type should be one of the three values, got {source_type}"
+
+
 def test_decompiler_fallback():
     """Test the fallback behavior when decompilation is not available."""
     with tempfile.TemporaryDirectory() as tmp_dir:
