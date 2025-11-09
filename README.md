@@ -444,46 +444,77 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 
 #### read_project_code
 
-从本地项目目录中读取指定文件的源代码。
+从本地项目目录中读取指定文件的源代码或配置文件内容。
 
 **用途：**
 - 读取具体类或文件的完整源代码
+- 查看配置文件内容（pom.xml、application.yml、application.properties 等）
+- 读取项目文档（README.md、SQL 脚本等）
 - 支持多模块 Maven/Gradle 项目
-- 自动搜索常见的源代码路径
+- 自动搜索常见的源代码和配置文件路径
 
 **参数：**
 
 - `project_name` (必需): 项目名称，例如 `my-project`
-- `class_name` (必需): 完全限定的类名或相对路径
-  - 类名格式：`com.example.MyClass`
+- `file_path` (必需): 文件标识符：可以是完全限定的 Java 类名或文件相对路径
+  - Java 类名格式：`com.example.MyClass` (自动查找对应的 .java 文件)
   - 相对路径格式：`src/main/java/com/example/MyClass.java`
   - 模块相对路径：`core/src/main/java/com/example/MyClass.java`
+  - 配置文件路径：`src/main/resources/application.yml`、`pom.xml`
+  - 文档文件：`README.md`、`docs/setup.md`
 - `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
 
 **支持的文件类型：**
-- Java (.java)
+- Java 源代码 (.java)
+- 配置文件 (.xml, .properties, .yaml, .yml, .json, .conf, .config)
+- 构建脚本 (.gradle, .gradle.kts, pom.xml)
+- 文档文件 (.md, .txt)
+- SQL 脚本 (.sql)
+- Shell 脚本 (.sh, .bat)
 
 **自动搜索路径：**
-- `src/main/java/{class_path}.java`
-- `src/{class_path}.java`
-- `{class_path}.java`
-- 多模块项目中的子模块路径
+- 对于 Java 类名：`src/main/java/{class_path}.java`、`src/{class_path}.java`、`{class_path}.java`
+- 对于配置文件：项目根目录、`src/main/resources/`、`src/`、`config/` 及子模块
+- 支持多模块项目中的子模块路径
 
-**示例 1 - 使用类名：**
+**推荐工作流程：**
+1. 使用 `list_all_project` 确认项目存在
+2. 使用 `list_project_files`（建议带 `file_name_pattern` 参数）查看文件列表
+3. 使用本工具读取具体文件内容
+
+**示例 1 - 使用类名读取 Java 源代码：**
 
 ```json
 {
   "project_name": "my-spring-app",
-  "class_name": "com.example.service.UserService"
+  "file_path": "com.example.service.UserService"
 }
 ```
 
-**示例 2 - 使用相对路径：**
+**示例 2 - 使用相对路径读取 Java 文件：**
 
 ```json
 {
   "project_name": "nacos",
-  "class_name": "address/src/main/java/com/alibaba/nacos/address/component/AddressServerGeneratorManager.java"
+  "file_path": "address/src/main/java/com/alibaba/nacos/address/component/AddressServerGeneratorManager.java"
+}
+```
+
+**示例 3 - 读取配置文件：**
+
+```json
+{
+  "project_name": "my-spring-app",
+  "file_path": "src/main/resources/application.yml"
+}
+```
+
+**示例 4 - 读取项目根目录的文件：**
+
+```json
+{
+  "project_name": "my-spring-app",
+  "file_path": "pom.xml"
 }
 ```
 

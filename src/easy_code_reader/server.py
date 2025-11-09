@@ -140,12 +140,13 @@ class EasyCodeReaderServer:
                 Tool(
                     name="read_project_code",
                     description=(
-                        "从本地项目目录中读取指定文件的源代码。"
-                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService）；2) 相对路径（如 src/main/java/com/example/MyClass.java 或 core/src/main/java/com/example/MyClass.java）。"
+                        "从本地项目目录中读取指定文件的源代码或配置文件内容。"
+                        "支持读取 Java 项目中的所有文件类型：Java 源代码、XML 配置、properties、YAML、JSON、Gradle 脚本、Markdown 文档等。"
+                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService，自动查找对应的 .java 文件）；2) 相对路径（如 src/main/resources/application.yml、pom.xml、core/src/main/java/com/example/MyClass.java）。"
                         "自动支持多模块 Maven/Gradle 项目，会递归搜索子模块中的文件。"
                         "搜索策略：优先在项目根目录查找，如果未找到则自动在所有子模块（包含 pom.xml 或 build.gradle 的目录）中搜索。"
-                        "适用场景：阅读本地项目源码、分析项目结构、理解业务逻辑实现。"
-                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files 查看文件列表 → 使用本工具读取具体文件。"
+                        "适用场景：阅读本地项目源码、查看配置文件、分析项目结构、理解业务逻辑实现。"
+                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files（建议带 file_name_pattern 参数进行模糊匹配）查看文件列表 → 使用本工具读取具体文件。"
                     ),
                     inputSchema={
                         "type": "object",
@@ -154,16 +155,16 @@ class EasyCodeReaderServer:
                                 "type": "string",
                                 "description": "项目名称（例如: my-project）"
                             },
-                            "class_name": {
+                            "file_path": {
                                 "type": "string",
-                                "description": "完全限定的类名或相对路径（例如: com.example.MyClass 或 src/main/java/com/example/MyClass.java）"
+                                "description": "文件标识符：可以是完全限定的 Java 类名或文件相对路径。Java 类名示例: com.example.MyClass（自动查找 .java 文件）；文件路径示例: src/main/resources/application.yml、pom.xml、README.md、core/src/main/java/MyClass.java"
                             },
                             "project_dir": {
                                 "type": "string",
                                 "description": "项目目录路径（可选，如果未提供则使用启动时配置的路径）"
                             }
                         },
-                        "required": ["project_name", "class_name"]
+                        "required": ["project_name", "file_path"]
                     }
                 ),
                 Tool(
@@ -361,15 +362,19 @@ class EasyCodeReaderServer:
         jar_path = self._get_jar_path(group_id, artifact_id, version)
         if not jar_path or not jar_path.exists():
             error_msg = (
-                f"未找到 JAR 文件: {group_id}:{artifact_id}:{version}\n\n"
+                f"❌ 未找到 JAR 文件: {group_id}:{artifact_id}:{version}\n\n"
                 f"Maven 仓库路径: {self.maven_home}\n\n"
                 f"可能的原因：\n"
-                f"1. Maven 坐标信息可能不正确\n\n"
-                f"建议排查步骤：\n"
-                f"- 请先使用 read_project_code 工具读取项目的 pom.xml 文件\n"
-                f"- 在 pom.xml 中查找 <dependencies> 部分，核对正确的 groupId、artifactId 和 version\n"
-                f"- 确认坐标信息后，使用正确的参数重新调用 read_jar_source 工具\n"
-                f"- 如果坐标正确但 jar 不存在，可能需要先执行 Maven 构建命令安装依赖"
+                f"1. Maven 坐标信息（groupId/artifactId/version）不正确\n"
+                f"2. 该依赖尚未下载到本地 Maven 仓库\n\n"
+                f"建议排查步骤（按优先级）：\n"
+                f"1. 如果有项目的 pom.xml 文件，使用 read_project_code 工具读取\n"
+                f"   - 在 <dependencies> 部分查找正确的 groupId、artifactId 和 version\n"
+                f"   - 注意：groupId 和 artifactId 可能与直观理解不同（如 'spring-core' 的 groupId 是 'org.springframework'）\n"
+                f"2. 确认坐标信息正确后，重新调用 read_jar_source 工具\n"
+                f"3. 如果坐标正确但 JAR 不存在，需要在项目目录执行 Maven 构建命令：\n"
+                f"   - mvn dependency:resolve (下载所有依赖)\n"
+                f"   - 或 mvn clean install (完整构建)"
             )
             logger.warning(error_msg)
             return [TextContent(type="text", text=error_msg)]
@@ -401,22 +406,23 @@ class EasyCodeReaderServer:
             logger.error(f"提取源代码时出错: {str(e)}", exc_info=True)
             return [TextContent(type="text", text=f"提取源代码时出错: {str(e)}")]
     
-    async def _read_project_code(self, project_name: str, class_name: str, 
+    async def _read_project_code(self, project_name: str, file_path: str, 
                                  project_dir: Optional[str] = None) -> List[TextContent]:
         """
-        从本地项目目录中读取代码
+        从本地项目目录中读取代码或配置文件
         支持多模块项目（Maven/Gradle），会递归搜索子模块
+        支持读取所有类型的文件：Java 源代码、配置文件、脚本、文档等
         
         参数:
             project_name: 项目名称
-            class_name: 完全限定的类名或相对路径
+            file_path: 文件标识符（完全限定的类名、相对路径或文件名）
             project_dir: 项目目录路径（可选）
         """
         # 输入验证
         if not project_name or not project_name.strip():
             return [TextContent(type="text", text="错误: project_name 不能为空")]
-        if not class_name or not class_name.strip():
-            return [TextContent(type="text", text="错误: class_name 不能为空")]
+        if not file_path or not file_path.strip():
+            return [TextContent(type="text", text="错误: file_path 不能为空")]
         
         # 确定使用的项目目录
         target_dir = None
@@ -432,70 +438,113 @@ class EasyCodeReaderServer:
             return [TextContent(type="text", text=f"错误: 项目目录不存在: {target_dir}")]
         
         # 尝试查找文件
-        # 1. 如果 class_name 看起来像是路径（包含 / 或常见文件扩展名），直接使用
-        if '/' in class_name or class_name.endswith('.java'):
-            # 优先尝试：直接在 target_dir 下查找（适用于 class_name 包含完整相对路径的情况）
-            file_path_direct = target_dir / class_name
+        # 1. 如果 file_path 看起来像是路径（包含 / 或文件扩展名），直接使用
+        has_path_separator = '/' in file_path
+        has_extension = any(file_path.endswith(ext) for ext in ['.java', '.xml', '.properties', '.yaml', 
+                                                                   '.yml', '.json', '.gradle', '.md', 
+                                                                   '.txt', '.sql', '.sh', '.bat', '.conf'])
+        
+        if has_path_separator or has_extension:
+            # 优先尝试：直接在 target_dir 下查找（适用于 file_path 包含完整相对路径的情况）
+            file_path_direct = target_dir / file_path
             if file_path_direct.exists() and file_path_direct.is_file():
                 logger.info(f"直接在 project_dir 下找到文件: {file_path_direct}")
-                return await self._return_file_content(project_name, class_name, file_path_direct)
+                return await self._return_file_content(project_name, file_path, file_path_direct)
             
             # 检查项目子目录是否存在
             project_path = target_dir / project_name
             if project_path.exists() and project_path.is_dir():
                 # 在项目子目录中查找
-                file_path = project_path / class_name
-                if file_path.exists() and file_path.is_file():
-                    return await self._return_file_content(project_name, class_name, file_path)
+                file_path_in_project = project_path / file_path
+                if file_path_in_project.exists() and file_path_in_project.is_file():
+                    return await self._return_file_content(project_name, file_path, file_path_in_project)
                 
                 # 在子模块中查找
-                result = self._search_in_modules(project_path, class_name)
+                result = self._search_in_modules(project_path, file_path)
                 if result:
-                    return await self._return_file_content(project_name, class_name, result)
+                    return await self._return_file_content(project_name, file_path, result)
             else:
-                # 项目子目录不存在，但 class_name 是路径形式，已经在 target_dir 直接查找过了
-                logger.warning(f"在 {target_dir} 下未找到文件: {class_name}")
+                # 项目子目录不存在，但 file_path 是路径形式，已经在 target_dir 直接查找过了
+                logger.warning(f"在 {target_dir} 下未找到文件: {file_path}")
         
-        # 2. 将类名转换为路径，搜索可能的源文件
-        # 支持 Java 类名格式: com.example.MyClass -> com/example/MyClass.java
-        class_path = class_name.replace('.', '/')
-        
-        # 常见的源代码路径模式
-        search_patterns = [
-            f"src/main/java/{class_path}.java",
-            f"src/{class_path}.java",
-            f"{class_path}.java",
-        ]
-        
-        # 检查项目子目录是否存在
-        project_path = target_dir / project_name
-        if project_path.exists() and project_path.is_dir():
-            # 尝试各种路径模式 - 在项目子目录中
-            for pattern in search_patterns:
-                file_path = project_path / pattern
-                if file_path.exists() and file_path.is_file():
-                    return await self._return_file_content(project_name, class_name, file_path)
+        # 2. 如果 file_path 没有扩展名且不包含路径分隔符，可能是 Java 类名
+        # 将类名转换为路径，搜索可能的 .java 文件
+        if not has_extension and not has_path_separator:
+            # 支持 Java 类名格式: com.example.MyClass -> com/example/MyClass.java
+            class_path = file_path.replace('.', '/')
             
-            # 在子模块中搜索
-            for pattern in search_patterns:
-                result = self._search_in_modules(project_path, pattern)
-                if result:
-                    return await self._return_file_content(project_name, class_name, result)
+            # 常见的源代码路径模式
+            search_patterns = [
+                f"src/main/java/{class_path}.java",
+                f"src/{class_path}.java",
+                f"{class_path}.java",
+            ]
+            
+            # 检查项目子目录是否存在
+            project_path = target_dir / project_name
+            if project_path.exists() and project_path.is_dir():
+                # 尝试各种路径模式 - 在项目子目录中
+                for pattern in search_patterns:
+                    file_path_pattern = project_path / pattern
+                    if file_path_pattern.exists() and file_path_pattern.is_file():
+                        return await self._return_file_content(project_name, file_path, file_path_pattern)
+                
+                # 在子模块中搜索
+                for pattern in search_patterns:
+                    result = self._search_in_modules(project_path, pattern)
+                    if result:
+                        return await self._return_file_content(project_name, file_path, result)
+            else:
+                # 项目子目录不存在，尝试直接在 target_dir 下搜索
+                logger.info(f"项目子目录 {project_path} 不存在，尝试在 {target_dir} 下搜索")
+                for pattern in search_patterns:
+                    file_path_direct = target_dir / pattern
+                    if file_path_direct.exists() and file_path_direct.is_file():
+                        logger.info(f"在 project_dir 下找到文件: {file_path_direct}")
+                        return await self._return_file_content(project_name, file_path, file_path_direct)
         else:
-            # 项目子目录不存在，尝试直接在 target_dir 下搜索
-            logger.info(f"项目子目录 {project_path} 不存在，尝试在 {target_dir} 下搜索")
-            for pattern in search_patterns:
-                file_path_direct = target_dir / pattern
-                if file_path_direct.exists() and file_path_direct.is_file():
-                    logger.info(f"在 project_dir 下找到文件: {file_path_direct}")
-                    return await self._return_file_content(project_name, class_name, file_path_direct)
+            # 3. 如果有扩展名但不是标准路径，尝试在常见目录中查找
+            # 例如：application.yml, pom.xml 等
+            project_path = target_dir / project_name
+            if project_path.exists() and project_path.is_dir():
+                # 尝试在常见位置查找配置文件
+                common_paths = [
+                    file_path,  # 项目根目录
+                    f"src/main/resources/{file_path}",  # resources 目录
+                    f"src/{file_path}",  # src 目录
+                    f"config/{file_path}",  # config 目录
+                ]
+                
+                for common_path in common_paths:
+                    file_path_common = project_path / common_path
+                    if file_path_common.exists() and file_path_common.is_file():
+                        return await self._return_file_content(project_name, file_path, file_path_common)
+                
+                # 在子模块中搜索
+                for common_path in common_paths:
+                    result = self._search_in_modules(project_path, common_path)
+                    if result:
+                        return await self._return_file_content(project_name, file_path, result)
+            else:
+                # 项目子目录不存在，尝试直接在 target_dir 下搜索
+                logger.info(f"项目子目录 {project_path} 不存在，尝试在 {target_dir} 下搜索常见路径")
+                for common_path in [file_path, f"src/main/resources/{file_path}", f"src/{file_path}"]:
+                    file_path_direct = target_dir / common_path
+                    if file_path_direct.exists() and file_path_direct.is_file():
+                        logger.info(f"在 project_dir 下找到文件: {file_path_direct}")
+                        return await self._return_file_content(project_name, file_path, file_path_direct)
         
         # 如果找不到文件，返回错误信息
-        logger.warning(f"在项目 {project_name} 中未找到类: {class_name}")
+        logger.warning(f"在项目 {project_name} 中未找到文件: {file_path}")
         return [TextContent(
             type="text",
-            text=f"错误: 在项目 {project_name} 中未找到类 {class_name}\n"
-                 f"建议: 先使用 list_project_files 查看项目文件列表"
+            text=f"错误: 在项目 {project_name} 中未找到文件 {file_path}\n\n"
+                 f"建议排查步骤：\n"
+                 f"1. 优先使用 list_project_files 工具并传入 file_name_pattern 参数进行文件名模糊匹配（推荐）\n"
+                 f"   - 例如：如果要查找 UserService.java，可以传入 file_name_pattern='UserService'\n"
+                 f"   - 这样可以快速定位文件，减少返回的文件数量，节省上下文\n"
+                 f"2. 如果模糊匹配未找到，再使用 list_project_files 不传 file_name_pattern 查看完整文件列表\n"
+                 f"3. 确认文件路径后，使用正确的相对路径重新调用 read_project_code"
         )]
     
     def _search_in_modules(self, project_path: Path, relative_path: str) -> Optional[Path]:
@@ -599,16 +648,21 @@ class EasyCodeReaderServer:
             # 如果使用了项目名称模式但没有匹配到项目，添加提示
             if project_name_pattern and len(projects) == 0:
                 result["hint"] = (
-                    f"使用项目名称模式 '{project_name_pattern}' 未匹配到任何项目。"
-                    "这可能是因为模式过于严格或项目名不包含该关键词。"
-                    "建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。"
+                    f"⚠️ 使用项目名称模式 '{project_name_pattern}' 未匹配到任何项目。\n\n"
+                    "可能原因：\n"
+                    "- 模式关键词不在项目名称中\n"
+                    "- 项目名称拼写与模式不符\n\n"
+                    "建议操作：\n"
+                    "1. 不传入 project_name_pattern 参数，重新调用 list_all_project 查看完整项目列表\n"
+                    "2. 从完整列表中找到正确的项目名称后再进行后续操作"
                 )
                 result["total_all_projects"] = len(all_projects)
             elif project_name_pattern:
                 result["hint"] = (
-                    f"已使用项目名称模式 '{project_name_pattern}' 进行过滤。"
-                    "如果未找到预期的项目，可能是模式匹配过于严格。"
-                    "建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。"
+                    f"✓ 已使用项目名称模式 '{project_name_pattern}' 进行过滤，共匹配到 {len(projects)} 个项目。\n\n"
+                    "如果未找到预期的项目：\n"
+                    "- 可能是模式匹配过于严格\n"
+                    "- 建议不传入 project_name_pattern 参数重新调用 list_all_project 查看完整项目列表"
                 )
                 result["total_all_projects"] = len(all_projects)
             
@@ -781,15 +835,20 @@ class EasyCodeReaderServer:
         # 如果使用了文件名模式但没有匹配到文件，添加提示
         if file_name_pattern and len(file_paths) == 0:
             result["hint"] = (
-                f"使用文件名模式 '{file_name_pattern}' 未匹配到任何文件。"
-                "这可能是因为模式过于严格或文件名不包含该关键词。"
-                "建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
+                f"⚠️ 使用文件名模式 '{file_name_pattern}' 未匹配到任何文件。\n\n"
+                "可能原因：\n"
+                "- 模式关键词不在文件名中\n"
+                "- 搜索范围（sub_path）可能不包含目标文件\n\n"
+                "建议操作：\n"
+                "1. 调整 file_name_pattern 为更宽泛的关键词（如 'Service' 改为 'Serv'）\n"
+                "2. 不传入 file_name_pattern 参数，查看完整文件列表\n"
+                "3. 检查 sub_path 参数是否正确，或不传 sub_path 在整个项目中搜索"
             )
         elif file_name_pattern:
             result["hint"] = (
-                f"已使用文件名模式 '{file_name_pattern}' 进行过滤。"
-                "如果未找到预期的文件，可能是模式匹配过于严格。"
-                "建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
+                f"✓ 已使用文件名模式 '{file_name_pattern}' 进行过滤，共匹配到 {len(file_paths)} 个文件。\n\n"
+                "提示：这种方式可以减少返回的文件数量，节省上下文，推荐使用。\n"
+                "如果未找到预期的文件，可以调整模式或不传 file_name_pattern 查看完整列表。"
             )
 
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]

@@ -60,9 +60,11 @@ pip install -e ".[dev]"    # With dev dependencies (pytest, build, twine)
 3. Last resort: `_fallback_class_info()` returns bytecode metadata stub
 
 **Path Patterns (local projects):**
-- Input: `com.example.MyClass` or `core/src/main/java/com/example/MyClass.java`
-- Search order: `src/main/java/`, `src/`, root, then submodules (detects via `pom.xml`/`build.gradle`)
+- Input: `com.example.MyClass` (Java class) or `pom.xml` or `src/main/resources/application.yml`
+- Search order for Java classes: `src/main/java/`, `src/`, root, then submodules (detects via `pom.xml`/`build.gradle`)
+- Search order for config files: root, `src/main/resources/`, `src/`, `config/`, then submodules
 - Module detection: `_search_in_modules()` recursively checks subdirs with Maven/Gradle markers
+- Supports all file types: `.java`, `.xml`, `.properties`, `.yaml`, `.json`, `.gradle`, `.md`, `.sql`, etc.
 
 **File Filtering (list_project_files):**
 - **Include:** `.java`, `.xml`, `.properties`, `.yaml`, `.json`, `.gradle`, `.md`, `pom.xml`
@@ -101,10 +103,12 @@ pip install -e ".[dev]"    # With dev dependencies (pytest, build, twine)
 
 ## Key Patterns & Examples
 **AI-Friendly Error Messages:**
-- Tools include intelligent hints when queries fail (e.g., "模式匹配过于严格，建议不传此参数重新查询")
-- `list_all_project` with `project_name_pattern` but no matches → suggests retrying without pattern
-- `list_project_files` with `file_name_pattern` but no matches → provides hint in response JSON
-- Missing JAR → Returns detailed troubleshooting steps guiding user to check `pom.xml` via `read_project_code`
+- Tools include intelligent, structured hints when queries fail with clear actionable steps
+- `read_project_code` not found → Suggests using `list_project_files` with `file_name_pattern` for fuzzy matching first (reduces context size)
+- `list_all_project` with `project_name_pattern` but no matches → Provides structured hint with emoji indicators (⚠️/✓) and numbered steps
+- `list_project_files` with `file_name_pattern` but no matches → Explains possible reasons and multiple adjustment strategies
+- Missing JAR → Returns detailed troubleshooting with priority-ordered steps, including how to check `pom.xml` and run Maven commands
+- All hints emphasize context-efficiency strategies (fuzzy matching before full list) to optimize for LLM token usage
 
 **Error Handling:**
 - `UnsupportedClassVersionError` → Suggests upgrading Java or switching decompiler in `_decompile_with_cfr()` / `_decompile_with_fernflower()`
@@ -154,4 +158,4 @@ for subdir in project_path.iterdir():
 **SNAPSHOT not updating:** Cache is keyed by timestamped jar name. Manually delete `easy-code-reader/` cache dir if needed.
 
 ---
-*Last updated: Based on codebase analysis as of v1.0.5*
+*Last updated: Based on codebase analysis as of v1.0.6*
