@@ -265,6 +265,17 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 2. 如果 sources jar 不存在或提取失败，自动回退到反编译主 JAR 文件
 3. 支持 SNAPSHOT 版本的智能处理
 
+**智能错误提示：**
+
+当 JAR 文件未找到时，工具会提供详细的排查建议：
+- 提示可能的原因（依赖未安装、Maven 坐标错误）
+- 建议使用 `read_project_code` 工具读取项目的 `pom.xml` 文件
+- 指导在 `<dependencies>` 部分核对正确的 Maven 坐标
+- 提示确认坐标后重新调用工具
+- 说明可能需要执行 Maven 构建命令安装依赖
+
+这个智能提示机制特别适合与 AI 助手配合使用，能有效减少因 Maven 坐标错误导致的重复尝试。
+
 **示例：**
 
 ```json
@@ -332,6 +343,7 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 - 查找特定的类或配置文件
 - 分析类之间的关系和依赖
 - 当项目文件过多时，聚焦特定模块
+- 支持文件名模糊匹配，快速定位目标文件
 
 **支持两种模式：**
 
@@ -342,11 +354,20 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 
 - `project_name` (必需): 项目名称，例如 `nacos`
 - `sub_path` (可选): 指定项目内的子目录路径，例如 `core` 或 `address/src/main/java`
+- `file_name_pattern` (可选): 文件名模糊匹配模式（不区分大小写），用于进一步过滤文件列表
+  - 支持左右模糊匹配，例如 `Service` 将匹配包含 `service`、`Service`、`SERVICE` 的文件名
+  - ⚠️ **使用建议**：如果匹配模式过于严格可能导致遗漏目标文件
+  - 💡 **最佳实践**：若未找到预期结果，建议不传此参数重新查询完整列表
 - `project_dir` (可选): 项目所在的父目录路径，如未提供则使用启动时配置的路径
 
 **自动过滤内容：**
 - ✅ 包含：Java 源代码 (.java)、配置文件 (.xml, .properties, .yaml, .json 等)、构建脚本、文档
 - ❌ 排除：测试目录 (`src/test`)、编译产物 (`target`, `build`)、IDE 配置、版本控制文件
+
+**智能提示机制：**
+- 当使用 `file_name_pattern` 但未匹配到文件时，返回结果会包含提示信息
+- 建议 AI 助手在未找到预期文件时，不传 `file_name_pattern` 参数重新查询
+- 有效减少因过度过滤导致的查询失败
 
 **示例 1 - 列出整个项目：**
 
@@ -365,6 +386,15 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 }
 ```
 
+**示例 3 - 使用文件名模糊匹配：**
+
+```json
+{
+  "project_name": "nacos",
+  "file_name_pattern": "Service"
+}
+```
+
 **返回格式：**
 
 ```json
@@ -372,15 +402,21 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
   "project_name": "nacos",
   "project_dir": "/path/to/projects/nacos",
   "search_scope": "core",
-  "total_files": 45,
+  "file_name_pattern": "Service",
+  "total_files": 15,
   "files": [
-    "core/pom.xml",
     "core/src/main/java/com/alibaba/nacos/core/service/NacosService.java",
-    "core/src/main/resources/application.properties",
+    "api/src/main/java/com/alibaba/nacos/api/naming/NamingService.java",
     "..."
-  ]
+  ],
+  "hint": "已使用文件名模式 'Service' 进行过滤。如果未找到预期的文件，可能是模式匹配过于严格。建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
 }
 ```
+
+**提示信息说明：**
+- 当使用 `file_name_pattern` 但未匹配到任何文件时，`hint` 字段会提示模式可能过于严格
+- 当使用 `file_name_pattern` 且有匹配结果时，`hint` 字段会提醒如果结果不符合预期可以不传参数重新查询
+- 这个智能提示机制帮助 AI 助手更好地调整查询策略，避免因过度过滤错过目标文件
 
 #### read_project_code
 

@@ -192,6 +192,7 @@ class EasyCodeReaderServer:
                         "列出 Java 项目中的源代码文件和配置文件路径。"
                         "支持两种模式：1) 列出整个项目的所有文件；2) 指定子目录（如 'core' 或 'address/src/main/java'）仅列出该目录下的文件。"
                         "返回相对路径列表，已自动过滤测试目录（src/test）、编译产物（target/build）和 IDE 配置等无关文件。"
+                        "支持通过 file_name_pattern 进行文件名模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标文件。"
                         "适合在阅读代码前先了解项目结构，或当项目文件过多时聚焦特定模块。"
                     ),
                     inputSchema={
@@ -204,6 +205,10 @@ class EasyCodeReaderServer:
                             "sub_path": {
                                 "type": "string",
                                 "description": "可选：指定项目内的子目录路径，只列出该目录下的文件（例如: 'core' 或 'address/src/main/java'）。不指定则列出整个项目"
+                            },
+                            "file_name_pattern": {
+                                "type": "string",
+                                "description": "可选：文件名模糊匹配模式（不区分大小写），用于进一步过滤文件列表。例如：'Service' 将匹配包含 'service'、'Service'、'SERVICE' 的文件名。注意：如果匹配模式过于严格可能导致遗漏目标文件，若未找到预期结果，建议不传此参数重新查询"
                             },
                             "project_dir": {
                                 "type": "string",
@@ -351,9 +356,15 @@ class EasyCodeReaderServer:
         jar_path = self._get_jar_path(group_id, artifact_id, version)
         if not jar_path or not jar_path.exists():
             error_msg = (
-                f"未找到 JAR 文件: {group_id}:{artifact_id}:{version}\n"
-                f"Maven 仓库路径: {self.maven_home}\n"
-                f"请确认依赖已安装到本地仓库"
+                f"未找到 JAR 文件: {group_id}:{artifact_id}:{version}\n\n"
+                f"Maven 仓库路径: {self.maven_home}\n\n"
+                f"可能的原因：\n"
+                f"1. Maven 坐标信息可能不正确\n\n"
+                f"建议排查步骤：\n"
+                f"- 请先使用 read_project_code 工具读取项目的 pom.xml 文件\n"
+                f"- 在 pom.xml 中查找 <dependencies> 部分，核对正确的 groupId、artifactId 和 version\n"
+                f"- 确认坐标信息后，使用正确的参数重新调用 read_jar_source 工具\n"
+                f"- 如果坐标正确但 jar 不存在，可能需要先执行 Maven 构建命令安装依赖"
             )
             logger.warning(error_msg)
             return [TextContent(type="text", text=error_msg)]
@@ -576,6 +587,7 @@ class EasyCodeReaderServer:
             return [TextContent(type="text", text=f"列举项目时出错: {str(e)}")]
 
     async def _list_project_files(self, project_name: str, sub_path: Optional[str] = None, 
+                                   file_name_pattern: Optional[str] = None,
                                    project_dir: Optional[str] = None) -> List[TextContent]:
         """
         列出 Java 项目中的源代码文件和配置文件路径
@@ -589,6 +601,7 @@ class EasyCodeReaderServer:
         参数:
             project_name: 项目名称
             sub_path: 可选，项目内的子目录路径（如 'core' 或 'address/src/main/java'）
+            file_name_pattern: 可选，文件名模糊匹配模式（不区分大小写）
             project_dir: 可选，项目所在的父目录路径
         """
         # 确定使用的项目目录
@@ -711,7 +724,12 @@ class EasyCodeReaderServer:
                         # 只包含指定的文件类型
                         if should_include_file(item.name):
                             file_relative = f"{relative_path}/{item.name}" if relative_path else item.name
-                            file_paths.append(file_relative)
+                            # 如果指定了文件名模式，进行模糊匹配
+                            if file_name_pattern:
+                                if file_name_pattern.lower() in item.name.lower():
+                                    file_paths.append(file_relative)
+                            else:
+                                file_paths.append(file_relative)
             except PermissionError as e:
                 logger.warning(f"无权限访问目录 {path}: {e}")
             except Exception as e:
@@ -719,13 +737,29 @@ class EasyCodeReaderServer:
 
         collect_files(start_path, search_prefix)
 
+        # 构建结果信息
         result = {
             "project_name": project_name,
             "project_dir": str(project_path),
             "search_scope": sub_path if sub_path else "entire project",
+            "file_name_pattern": file_name_pattern if file_name_pattern else "none",
             "total_files": len(file_paths),
             "files": sorted(file_paths)
         }
+        
+        # 如果使用了文件名模式但没有匹配到文件，添加提示
+        if file_name_pattern and len(file_paths) == 0:
+            result["hint"] = (
+                f"使用文件名模式 '{file_name_pattern}' 未匹配到任何文件。"
+                "这可能是因为模式过于严格或文件名不包含该关键词。"
+                "建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
+            )
+        elif file_name_pattern:
+            result["hint"] = (
+                f"已使用文件名模式 '{file_name_pattern}' 进行过滤。"
+                "如果未找到预期的文件，可能是模式匹配过于严格。"
+                "建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
+            )
 
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
     
