@@ -171,7 +171,8 @@ class EasyCodeReaderServer:
                     description=(
                         "列举项目目录下所有的项目文件夹名称。"
                         "返回项目目录中所有子目录的名称列表（自动过滤隐藏目录如 .git）。"
-                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称。"
+                        "支持通过 project_name_pattern 进行项目名称模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标项目。"
+                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称；4) 快速查找特定名称模式的项目。"
                         "推荐使用：这是探索本地项目的第一步，先用此工具获取所有项目列表，再使用 list_project_files 查看具体项目的文件结构。"
                         "返回格式：包含项目目录路径、项目总数和项目名称列表的 JSON 对象。"
                     ),
@@ -181,6 +182,10 @@ class EasyCodeReaderServer:
                             "project_dir": {
                                 "type": "string",
                                 "description": "项目目录路径（可选，如果未提供则使用启动时配置的路径）"
+                            },
+                            "project_name_pattern": {
+                                "type": "string",
+                                "description": "可选：项目名称模糊匹配模式（不区分大小写），用于过滤项目列表。例如：'nacos' 将匹配包含 'nacos'、'Nacos'、'NACOS' 的项目名。注意：如果匹配模式过于严格可能导致遗漏目标项目，若未找到预期结果，建议不传此参数重新查询"
                             }
                         },
                         "required": []
@@ -550,12 +555,14 @@ class EasyCodeReaderServer:
             logger.error(f"读取文件失败 {file_path}: {str(e)}", exc_info=True)
             return [TextContent(type="text", text=f"读取文件时出错: {str(e)}")]
     
-    async def _list_all_project(self, project_dir: Optional[str] = None) -> List[TextContent]:
+    async def _list_all_project(self, project_dir: Optional[str] = None, 
+                                 project_name_pattern: Optional[str] = None) -> List[TextContent]:
         """
         列举项目目录下所有的项目文件夹
         
         参数:
             project_dir: 项目目录路径（可选）
+            project_name_pattern: 可选，项目名称模糊匹配模式（不区分大小写）
         """
         # 确定使用的项目目录
         target_dir = None
@@ -572,14 +579,38 @@ class EasyCodeReaderServer:
         
         # 获取所有子目录（项目）
         try:
-            projects = [d.name for d in target_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
+            all_projects = [d.name for d in target_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
+            
+            # 如果指定了项目名称模式，进行模糊匹配
+            if project_name_pattern:
+                projects = [p for p in all_projects if project_name_pattern.lower() in p.lower()]
+            else:
+                projects = all_projects
+            
             projects.sort()
             
             result = {
                 "project_dir": str(target_dir),
-                "project_count": len(projects),
+                "project_name_pattern": project_name_pattern if project_name_pattern else "none",
+                "total_projects": len(projects),
                 "projects": projects
             }
+            
+            # 如果使用了项目名称模式但没有匹配到项目，添加提示
+            if project_name_pattern and len(projects) == 0:
+                result["hint"] = (
+                    f"使用项目名称模式 '{project_name_pattern}' 未匹配到任何项目。"
+                    "这可能是因为模式过于严格或项目名不包含该关键词。"
+                    "建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。"
+                )
+                result["total_all_projects"] = len(all_projects)
+            elif project_name_pattern:
+                result["hint"] = (
+                    f"已使用项目名称模式 '{project_name_pattern}' 进行过滤。"
+                    "如果未找到预期的项目，可能是模式匹配过于严格。"
+                    "建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。"
+                )
+                result["total_all_projects"] = len(all_projects)
             
             return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
         except Exception as e:

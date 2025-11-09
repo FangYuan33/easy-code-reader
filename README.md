@@ -19,9 +19,10 @@ A powerful MCP (Model Context Protocol) server for intelligently reading Java so
 ## 功能特性
 
 - 📁 **本地项目代码读取**：支持从本地项目目录读取源代码，支持多模块 Maven/Gradle 项目
-- 📋 **项目列举功能**：列出项目目录下所有项目，便于快速查找和定位
-- 🗂️ **智能文件过滤**：自动过滤测试目录、编译产物和 IDE 配置，只显示源代码和配置文件
+- 📋 **项目列举功能**：列出项目目录下所有项目，便于快速查找和定位，支持项目名称模糊匹配
+- 🗂️ **智能文件过滤**：自动过滤测试目录、编译产物和 IDE 配置，只显示源代码和配置文件，支持文件名模糊匹配
 - 🎯 **模块聚焦模式**：支持只列出项目中特定子目录的文件，精准定位目标代码
+- 🤖 **AI 友好的智能提示**：所有工具都具备智能错误提示机制，当查询失败时主动引导 AI 助手调整策略，有效减少幻觉和重复尝试
 - 📦 **从 Maven 仓库读取源代码**：自动从本地 Maven 仓库（默认获取 **MAVEN_HOME** 目录或 `~/.m2/repository`，支持配置）中查找和读取 JAR 包源代码
 - 🔍 **智能源码提取**：优先从 sources jar 提取源码，如果不存在则自动反编译 class 文件
 - 🛠️ **双反编译器支持**：支持 CFR 和 Fernflower 反编译器，根据 Java 版本自动选择最佳反编译器
@@ -307,15 +308,33 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 - 查看所有可用的项目
 - 当输入不完整的项目名时，帮助推理出最接近的项目名
 - 验证项目是否存在
+- 支持项目名称模糊匹配，快速查找特定项目
 
 **参数：**
 
 - `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
+- `project_name_pattern` (可选): 项目名称模糊匹配模式（不区分大小写），用于过滤项目列表
+  - 支持左右模糊匹配，例如 `nacos` 将匹配包含 `nacos`、`Nacos`、`NACOS` 的项目名
+  - ⚠️ **使用建议**：如果匹配模式过于严格可能导致遗漏目标项目
+  - 💡 **最佳实践**：若未找到预期结果，建议不传此参数重新查询完整列表
 
-**示例：**
+**智能提示机制：**
+- 当使用 `project_name_pattern` 但未匹配到项目时，返回结果会包含提示信息
+- 建议 AI 助手在未找到预期项目时，不传 `project_name_pattern` 参数重新查询
+- 有效减少因过度过滤导致的查询失败
+
+**示例 1 - 列出所有项目：**
 
 ```json
 {}
+```
+
+**示例 2 - 使用项目名称模糊匹配：**
+
+```json
+{
+  "project_name_pattern": "spring"
+}
 ```
 
 **返回格式：**
@@ -323,16 +342,21 @@ Easy Code Reader 提供了 4 个主要工具，分为两大使用场景：
 ```json
 {
   "project_dir": "/path/to/projects",
-  "project_count": 5,
+  "project_name_pattern": "spring",
+  "total_projects": 2,
   "projects": [
-    "nacos",
     "spring-boot",
-    "my-app",
-    "demo-project",
-    "test-service"
-  ]
+    "spring-cloud-demo"
+  ],
+  "hint": "已使用项目名称模式 'spring' 进行过滤。如果未找到预期的项目，可能是模式匹配过于严格。建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。",
+  "total_all_projects": 5
 }
 ```
+
+**提示信息说明：**
+- 当使用 `project_name_pattern` 但未匹配到任何项目时，`hint` 字段会提示模式可能过于严格，并显示总项目数 `total_all_projects`
+- 当使用 `project_name_pattern` 且有匹配结果时，`hint` 字段会提醒如果结果不符合预期可以不传参数重新查询，同时显示总项目数
+- 这个智能提示机制帮助 AI 助手更好地调整查询策略，避免因过度过滤错过目标项目
 
 #### list_project_files
 
