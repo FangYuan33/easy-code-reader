@@ -601,3 +601,4 @@ Apache License 2.0，详见 [LICENSE](LICENSE) 文件。
 
 - [Github: maven-decoder-mcp](https://github.com/salitaba/maven-decoder-mcp)
 - [Github: fernflower](https://github.com/JetBrains/fernflower)
+- [Github: Model Context Protocol(MCP) 编程极速入门](https://github.com/liaokongVFX/MCP-Chinese-Getting-Started-Guide)

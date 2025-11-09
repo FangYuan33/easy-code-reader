@@ -211,3 +211,4 @@ examples/*.jar
 
 # Decompiled class cache directories
 easy-jar-reader/
+uv.lock

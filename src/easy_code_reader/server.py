@@ -260,12 +260,18 @@ class EasyCodeReaderServer:
             ]
         
         @self.server.read_resource()
-        async def handle_read_resource(uri: str) -> str:
-            """读取资源内容"""
-            if uri == "easy-code-reader://guide":
+        async def handle_read_resource(uri) -> str:
+            """读取资源内容
+            
+            注意：uri 参数类型为 pydantic.networks.AnyUrl，需要转换为字符串进行比较
+            """
+            # 将 AnyUrl 对象转换为字符串
+            uri_str = str(uri)
+            
+            if uri_str == "easy-code-reader://guide":
                 return self._get_guide_content()
             else:
-                raise ValueError(f"Unknown resource URI: {uri}")
+                raise ValueError(f"Unknown resource URI: {uri_str}")
     
     def _get_guide_content(self) -> str:
         """获取使用指南内容"""
