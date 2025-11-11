@@ -355,5 +355,259 @@ async def test_search_artifact_path_format(temp_maven_repo):
     assert path.parent.name == "path-test"
 
 
+@pytest.mark.asyncio
+async def test_search_artifact_performance_optimization(temp_maven_repo):
+    """
+    测试搜索性能优化：验证使用 rglob(artifact_id) 而非 rglob('*')
+    
+    创建复杂的目录结构来验证：
+    - 搜索次数应该只计数匹配的 artifact 目录
+    - 不应该遍历所有不相关的目录和文件
+    """
+    # 创建目标 artifact
+    create_test_artifact(temp_maven_repo, "com.example", "target-artifact", "1.0.0")
+    
+    # 创建大量干扰目录和文件（在不同的 groupId 下）
+    noise_groups = ["org.apache", "io.netty", "com.google"]
+    noise_artifacts = ["noise-1", "noise-2", "noise-3", "noise-4", "noise-5"]
+    
+    for group in noise_groups:
+        for artifact in noise_artifacts:
+            create_test_artifact(temp_maven_repo, group, artifact, "1.0.0")
+            # 再创建一些版本目录增加复杂度
+            create_test_artifact(temp_maven_repo, group, artifact, "2.0.0")
+    
+    # 执行搜索
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("target-artifact")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 验证找到目标
+    assert json_result["total_matches"] == 1
+    assert json_result["matches"][0]["artifact_id"] == "target-artifact"
+    
+    # 验证性能：searched_dirs 应该远小于总目录数
+    # 如果使用 rglob('*')，会遍历所有目录（3 groups * 5 artifacts * 2 versions = 30+ 个版本目录，加上中间路径会更多）
+    # 如果使用 rglob(artifact_id)，只会检查匹配的目录（应该只有几个）
+    searched_dirs = json_result["searched_dirs"]
+    
+    # 由于优化后只搜索名为 target-artifact 的目录，searched_dirs 应该很小
+    # 在这个测试中，应该远小于 30（实际干扰目录数）
+    assert searched_dirs < 10, f"搜索了 {searched_dirs} 个目录，优化可能未生效（预期 < 10）"
+    
+    # 验证搜索时间合理
+    assert json_result["elapsed_seconds"] < 5, "搜索时间过长，可能存在性能问题"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_deep_nested_structure(temp_maven_repo):
+    """测试深层嵌套结构的搜索"""
+    # 创建深层嵌套的 groupId
+    create_test_artifact(temp_maven_repo, "com.example.very.deep.nested", "deep-artifact", "1.0.0")
+    create_test_artifact(temp_maven_repo, "org.another.deep.structure", "deep-artifact", "2.0.0")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("deep-artifact")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 验证能找到所有深层嵌套的 artifact
+    assert json_result["total_matches"] == 2
+    
+    # 验证 groupId 格式正确（应该包含所有层级）
+    group_ids = [m["group_id"] for m in json_result["matches"]]
+    assert "com.example.very.deep.nested" in group_ids
+    assert "org.another.deep.structure" in group_ids
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_early_filtering_with_group_hint(temp_maven_repo):
+    """
+    测试 group_id_hint 早期过滤优化
+    
+    验证：
+    1. 当提供带完整路径的 group_id_hint 时，应该跳过不匹配的顶级目录
+    2. searched_dirs 应该显著减少
+    3. 结果应该只包含匹配 hint 的 artifacts
+    """
+    # 创建多个顶级 group 下的同名 artifact
+    create_test_artifact(temp_maven_repo, "com.example", "common-name", "1.0.0")
+    create_test_artifact(temp_maven_repo, "com.other", "common-name", "1.0.0")
+    create_test_artifact(temp_maven_repo, "org.springframework", "common-name", "1.0.0")
+    create_test_artifact(temp_maven_repo, "org.apache", "common-name", "1.0.0")
+    create_test_artifact(temp_maven_repo, "io.netty", "common-name", "1.0.0")
+    
+    # 创建更多干扰项（在不同的顶级目录）
+    for i in range(5):
+        create_test_artifact(temp_maven_repo, f"com.noise{i}", "noise-artifact", "1.0.0")
+        create_test_artifact(temp_maven_repo, f"io.noise{i}", "noise-artifact", "1.0.0")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    
+    # 不使用 hint 搜索（基准）
+    result_no_hint = await server._search_artifact("common-name")
+    json_no_hint = json.loads(result_no_hint[0].text)
+    searched_no_hint = json_no_hint["searched_dirs"]
+    
+    # 使用完整的 group_id_hint="org.springframework" 搜索（带点号，可以早期过滤）
+    result_with_hint = await server._search_artifact("common-name", group_id_hint="org.springframework")
+    json_with_hint = json.loads(result_with_hint[0].text)
+    
+    # 验证结果正确性
+    assert json_with_hint["total_matches"] == 1
+    assert json_with_hint["matches"][0]["group_id"] == "org.springframework"
+    
+    # 验证性能优化：使用完整路径 hint 时搜索的目录数应该更少
+    # 因为会跳过 com/ 和 io/ 目录，只搜索 org/ 目录
+    searched_with_hint = json_with_hint["searched_dirs"]
+    assert searched_with_hint < searched_no_hint, \
+        f"早期过滤未生效: hint搜索了 {searched_with_hint} 个目录, 无hint搜索了 {searched_no_hint} 个目录"
+    
+    # 更强的断言：应该只搜索 org/ 目录下的匹配项
+    # org/ 下有 2 个 common-name（org.springframework 和 org.apache）
+    assert searched_with_hint <= 2, \
+        f"早期过滤优化可能未充分生效: 搜索了 {searched_with_hint} 个目录（预期 ≤ 2，因为只应搜索 org/ 分支）"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_hint_with_dot_notation(temp_maven_repo):
+    """测试使用点号分隔的 group_id_hint"""
+    # 创建测试数据
+    create_test_artifact(temp_maven_repo, "com.example.project", "test-artifact", "1.0.0")
+    create_test_artifact(temp_maven_repo, "org.example.other", "test-artifact", "1.0.0")
+    create_test_artifact(temp_maven_repo, "net.other", "test-artifact", "1.0.0")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    
+    # 使用包含点号的 hint
+    result = await server._search_artifact("test-artifact", group_id_hint="com.example")
+    json_result = json.loads(result[0].text)
+    
+    # 应该只找到 com.example.* 下的
+    assert json_result["total_matches"] == 1
+    assert json_result["matches"][0]["group_id"] == "com.example.project"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_hint_partial_match(temp_maven_repo):
+    """测试 group_id_hint 部分匹配行为"""
+    # 创建不同的 group
+    create_test_artifact(temp_maven_repo, "com.example.spring", "test", "1.0.0")
+    create_test_artifact(temp_maven_repo, "org.springframework.boot", "test", "1.0.0")
+    create_test_artifact(temp_maven_repo, "io.spring.framework", "test", "1.0.0")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    
+    # 使用 "spring" 作为 hint，应该匹配所有包含 spring 的 group
+    result = await server._search_artifact("test", group_id_hint="spring")
+    json_result = json.loads(result[0].text)
+    
+    # 应该找到所有包含 "spring" 的 group
+    assert json_result["total_matches"] == 3
+    
+    group_ids = [m["group_id"] for m in json_result["matches"]]
+    assert "com.example.spring" in group_ids
+    assert "org.springframework.boot" in group_ids
+    assert "io.spring.framework" in group_ids
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_version_sorting(temp_maven_repo):
+    """
+    测试版本号正确排序（修复字符串排序 bug）
+    
+    验证：
+    1. 版本号应该按语义版本排序，不是字母顺序
+    2. 1.10.0 > 1.9.0 > 1.2.0 > 1.1.0（正确）
+    3. 不应该是 1.9.0 > 1.10.0（字母顺序，错误）
+    """
+    # 创建多个版本，故意使用会导致字母排序错误的版本号
+    versions = ["1.0.0", "1.1.0", "1.2.0", "1.9.0", "1.10.0", "2.0.0"]
+    for version in versions:
+        create_test_artifact(temp_maven_repo, "com.example", "version-sort-test", version)
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("version-sort-test")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 验证找到所有版本
+    assert json_result["total_matches"] == 6
+    
+    # 提取返回的版本号列表
+    returned_versions = [m["version"] for m in json_result["matches"]]
+    
+    # 验证排序：应该是降序（最新版本在前）
+    # 正确顺序：2.0.0, 1.10.0, 1.9.0, 1.2.0, 1.1.0, 1.0.0
+    expected_order = ["2.0.0", "1.10.0", "1.9.0", "1.2.0", "1.1.0", "1.0.0"]
+    assert returned_versions == expected_order, \
+        f"版本排序错误:\n  实际: {returned_versions}\n  期望: {expected_order}"
+    
+    # 特别验证关键问题：1.10.0 应该在 1.9.0 之前（不是字母顺序）
+    idx_1_10 = returned_versions.index("1.10.0")
+    idx_1_9 = returned_versions.index("1.9.0")
+    assert idx_1_10 < idx_1_9, \
+        f"版本排序 bug: 1.10.0 (索引 {idx_1_10}) 应该在 1.9.0 (索引 {idx_1_9}) 之前"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_version_sorting_with_suffixes(temp_maven_repo):
+    """测试带后缀的版本号排序（SNAPSHOT, RELEASE, RC 等）"""
+    # 创建带各种后缀的版本
+    versions = ["1.0.0", "1.0.0-SNAPSHOT", "1.0.0-RC1", "1.0.0-RC2", "1.1.0-SNAPSHOT", "1.1.0"]
+    for version in versions:
+        create_test_artifact(temp_maven_repo, "com.example", "suffix-test", version)
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("suffix-test")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 验证找到所有版本
+    assert json_result["total_matches"] == 6
+    
+    # 提取版本号
+    returned_versions = [m["version"] for m in json_result["matches"]]
+    
+    # 验证 1.1.0 应该在所有 1.0.x 之前
+    idx_1_1_0 = returned_versions.index("1.1.0")
+    idx_1_0_0 = returned_versions.index("1.0.0")
+    assert idx_1_1_0 < idx_1_0_0, \
+        "1.1.0 应该排在 1.0.0 之前（更新的版本）"
+
+
+@pytest.mark.asyncio  
+async def test_search_artifact_version_sorting_multi_group(temp_maven_repo):
+    """测试多个 groupId 时，每个 group 内版本正确排序"""
+    # 为不同的 groupId 创建版本
+    for group in ["com.example", "org.test"]:
+        for version in ["1.0.0", "1.9.0", "1.10.0", "2.0.0"]:
+            create_test_artifact(temp_maven_repo, group, "multi-group", version)
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("multi-group")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 验证总数
+    assert json_result["total_matches"] == 8
+    
+    # 按 groupId 分组检查
+    matches_by_group = {}
+    for match in json_result["matches"]:
+        group_id = match["group_id"]
+        if group_id not in matches_by_group:
+            matches_by_group[group_id] = []
+        matches_by_group[group_id].append(match["version"])
+    
+    # 验证每个 group 内的版本排序
+    expected_version_order = ["2.0.0", "1.10.0", "1.9.0", "1.0.0"]
+    
+    for group_id, versions in matches_by_group.items():
+        assert versions == expected_version_order, \
+            f"{group_id} 的版本排序错误:\n  实际: {versions}\n  期望: {expected_version_order}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

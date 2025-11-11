@@ -32,7 +32,6 @@ class Config:
 
     # 服务器基础配置
     SERVER_NAME: str = "easy-code-reader"
-    SERVER_VERSION: str = "0.1.0"
 
     # 反编译器设置，反编译超时时间（秒）
     DECOMPILER_TIMEOUT: int = 30

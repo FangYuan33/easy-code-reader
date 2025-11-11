@@ -22,6 +22,7 @@ Easy Code Reader MCP Server
 import asyncio
 import json
 import logging
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
@@ -1058,7 +1059,7 @@ class EasyCodeReaderServer:
 
         results = []
         searched_dirs = 0
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.perf_counter()
 
         def search_maven_repo(base_path: Path):
             """
@@ -1083,17 +1084,47 @@ class EasyCodeReaderServer:
                     if not first_level.is_dir() or first_level.name.startswith('.'):
                         continue
 
-                    # 递归查找 artifactId 目录
-                    # 注意：这里使用 rglob 可能会遍历很多目录
-                    for group_dir in first_level.rglob('*'):
+                    # 性能优化：如果提供了 group_id_hint，提前检查路径是否可能匹配
+                    # 这样可以跳过整个不相关的目录分支，避免深度遍历
+                    # 例如: group_id_hint="springframework" 应该只进入可能包含它的目录（如 "org/"）
+                    if group_id_hint:
+                        first_level_name_lower = first_level.name.lower()
+                        group_id_hint_lower = group_id_hint.lower()
+                        
+                        # 策略：检查 hint 是否可能在这个目录分支下
+                        # 如果 hint 包含点号（如 "org.springframework"），检查第一部分
+                        # 如果 hint 不包含点号（如 "springframework"），需要更宽松的匹配
+                        
+                        # 分割 hint 获取各部分
+                        hint_parts = group_id_hint_lower.split('.')
+                        
+                        # 判断是否应该探索这个目录
+                        # 如果第一个部分匹配目录名，或者目录名可能是 hint 的一部分，就继续
+                        should_explore = False
+                        
+                        # 情况1：hint 的第一部分就是顶级目录（如 hint="org.spring"，目录="org"）
+                        if hint_parts[0] == first_level_name_lower:
+                            should_explore = True
+                        # 情况2：hint 可能在这个目录下的子包中（如 hint="springframework"，目录="org"）
+                        # 这种情况我们无法提前判断，需要保守处理
+                        # 只有当 hint 明确以其他顶级包开头时才跳过
+                        # 例如：hint="com.example"，当前目录="org"，则跳过
+                        elif '.' in group_id_hint_lower:
+                            # hint 包含完整路径，检查第一部分是否匹配
+                            # 如果不匹配，则跳过
+                            should_explore = False
+                        else:
+                            # hint 不包含点号，可能在任何顶级目录下，保守地探索
+                            should_explore = True
+                        
+                        if not should_explore:
+                            continue  # 跳过整个目录分支
+
+                    # 递归查找 artifactId 目录（优化：只查找名为 artifact_id 的目录）
+                    for artifact_dir in first_level.rglob(artifact_id):
                         searched_dirs += 1
 
-                        if not group_dir.is_dir():
-                            continue
-
-                        # 检查是否是目标 artifact_id 目录
-                        artifact_dir = group_dir / artifact_id
-                        if not artifact_dir.exists() or not artifact_dir.is_dir():
+                        if not artifact_dir.is_dir():
                             continue
 
                         try:
@@ -1101,7 +1132,7 @@ class EasyCodeReaderServer:
                             rel_path = artifact_dir.parent.relative_to(base_path)
                             group_id = str(rel_path).replace(os.sep, '.')
 
-                            # 如果提供了 group_id_hint，进行精确过滤（不区分大小写）
+                            # 精确的 group_id_hint 过滤（不区分大小写）
                             if group_id_hint and group_id_hint.lower() not in group_id.lower():
                                 continue
 
@@ -1157,10 +1188,79 @@ class EasyCodeReaderServer:
         search_maven_repo(self.maven_home)
 
         # 计算搜索耗时
-        elapsed_time = round(asyncio.get_event_loop().time() - start_time, 2)
+        elapsed_time = round(time.perf_counter() - start_time, 2)
 
-        # 按 groupId 和 version 排序结果（version 倒序，最新版本在前）
-        results.sort(key=lambda x: (x['group_id'], x['version']), reverse=True)
+        # 定义版本排序辅助函数
+        def version_sort_key(version_str: str):
+            """
+            将版本字符串转换为可排序的元组
+            处理各种 Maven 版本格式：1.0.0, 1.0.0-SNAPSHOT, 1.0.0-RC1 等
+            同时处理无规则版本名称（如 latest, dev 等）
+            
+            排序优先级：
+            1. 数字版本优先（按语义版本排序）
+            2. 字符串版本其次（按字母顺序）
+            
+            返回格式：(is_numeric, version_parts)
+            - is_numeric=1: 数字版本（优先级高）
+            - is_numeric=0: 纯字符串版本（优先级低）
+            """
+            try:
+                parts = []
+                # 分离主版本号和后缀（如 1.0.0-SNAPSHOT）
+                main_version, *suffix = version_str.split('-', 1)
+                
+                # 尝试解析主版本号，判断是否为数字版本
+                is_numeric_version = True
+                for part in main_version.split('.'):
+                    try:
+                        parts.append(int(part))
+                    except ValueError:
+                        # 如果有任何非数字部分，标记为非数字版本
+                        is_numeric_version = False
+                        parts = []  # 重置
+                        break
+                
+                # 如果是数字版本，继续处理后缀
+                if is_numeric_version and parts:
+                    # 处理后缀：给正式版本更高的优先级
+                    # 排序优先级：正式版(3) > RC/BETA/ALPHA(2) > SNAPSHOT(1) > 其他(0)
+                    if suffix:
+                        suffix_str = suffix[0].upper()
+                        if 'SNAPSHOT' in suffix_str:
+                            parts.append(1)  # SNAPSHOT 优先级低
+                            parts.append(suffix_str)
+                        elif 'RC' in suffix_str or 'ALPHA' in suffix_str or 'BETA' in suffix_str or 'M' == suffix_str[0]:
+                            parts.append(2)  # 预发布版本优先级中等
+                            parts.append(suffix_str)
+                        else:
+                            parts.append(0)  # 其他后缀优先级更低
+                            parts.append(suffix_str)
+                    else:
+                        parts.append(3)  # 正式版本优先级最高
+                        parts.append('')
+                    
+                    # 返回：(1, 数字版本元组) - 数字版本排在前面
+                    return (1, tuple(parts))
+                else:
+                    # 非数字版本（如 latest, dev, nightly等）
+                    # 返回：(0, 原字符串) - 字符串版本排在后面，按字母顺序
+                    return (0, version_str)
+                    
+            except Exception:
+                # 解析完全失败，按原字符串排序，优先级最低
+                return (0, version_str)
+
+        # 按 groupId 升序，version 降序排序结果
+        from itertools import groupby
+        sorted_results = []
+        
+        # 先按 groupId 排序并分组
+        for group_id, group in groupby(sorted(results, key=lambda x: x['group_id']), key=lambda x: x['group_id']):
+            # 每组内按版本降序排序（最新版本在前）
+            sorted_results.extend(sorted(list(group), key=lambda x: version_sort_key(x['version']), reverse=True))
+        
+        results = sorted_results
 
         # 构建返回结果
         result = {
@@ -1211,7 +1311,8 @@ class EasyCodeReaderServer:
                 f"🎯 找到 {len(results)} 个匹配的 artifact，请从中选择：\n\n"
                 f"{coords_list}\n\n"
                 "💡 选择建议：\n"
-                "• 通常选择最新的版本（列表已按版本倒序排列）\n"
+                "• 数字版本（如 1.0.0）按语义版本排序，最新版本在前\n"
+                "• 字符串版本（如 latest, dev）按字母顺序排序，排在数字版本之后\n"
                 "• 如果有 SNAPSHOT 版本，查看时间戳选择最新的\n"
                 "• 确认 groupId 是否符合预期\n\n"
                 "📌 选定后使用 read_jar_source 工具读取源代码"
@@ -1230,7 +1331,9 @@ class EasyCodeReaderServer:
                 "   • 示例：'org.springframework'（Spring 框架的包）\n\n"
                 "💡 提示：\n"
                 "• 结果已按 groupId 和版本排序\n"
-                "• 同一 groupId 下，最新版本在前\n"
+                "• 数字版本按语义版本排序（1.10.0 > 1.9.0），最新版本在前\n"
+                "• 字符串版本（如 latest, dev）排在数字版本之后，按字母顺序排列\n"
+                "• 同一 groupId 下的版本按上述规则降序排列\n"
                 "• 找到目标坐标后，使用 read_jar_source 工具读取源代码"
             )
 
