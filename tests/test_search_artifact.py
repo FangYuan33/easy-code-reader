@@ -19,34 +19,36 @@ def temp_maven_repo():
 
 def create_test_artifact(maven_repo: Path, group_id: str, artifact_id: str, version: str):
     """
-    在临时 Maven 仓库中创建测试 artifact
-    
-    参数:
-        maven_repo: Maven 仓库根目录
-        group_id: Maven group ID (如 org.springframework)
-        artifact_id: Maven artifact ID (如 spring-core)
-        version: Maven version (如 5.3.21)
+    Create a test artifact (JAR file) in a temporary Maven repository.
+
+    Args:
+        maven_repo: Root directory of the Maven repository.
+        group_id: Maven group ID (e.g., org.springframework).
+        artifact_id: Maven artifact ID (e.g., spring-core).
+        version: Maven version (e.g., 5.3.21).
+
+    Returns:
+        Path to the created JAR file.
     """
-    # 构建目录结构
+    # Build directory structure
     group_path = group_id.replace('.', '/')
     artifact_dir = maven_repo / group_path / artifact_id / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 创建主 JAR 文件
+
+    # Create main JAR file
     jar_path = artifact_dir / f"{artifact_id}-{version}.jar"
     with zipfile.ZipFile(jar_path, 'w', zipfile.ZIP_DEFLATED) as jar:
-        # 添加 manifest
+        # Add manifest
         manifest = "Manifest-Version: 1.0\n"
         jar.writestr("META-INF/MANIFEST.MF", manifest)
-        
-        # 添加一个测试类文件
+
+        # Add a test class file
         class_bytes = bytes([
             0xCA, 0xFE, 0xBA, 0xBE,  # Magic number
             0x00, 0x00,               # Minor version
             0x00, 0x34,               # Major version 52 (Java 8)
         ]) + b'\x00' * 100
         jar.writestr("com/example/Test.class", class_bytes)
-    
     return jar_path
 
 
