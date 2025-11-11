@@ -9,8 +9,10 @@ Easy Code Reader MCP Server
 - 从本地项目目录读取源代码（支持多模块项目）
 - 支持从 sources jar 提取源码或反编译 class 文件
 - 智能选择反编译器（CFR/Fernflower）
+- 在本地 Maven 仓库中搜索 artifact，查找完整 Maven 坐标
 
 提供的工具：
+- search_artifact: 在本地 Maven 仓库中搜索 artifact，返回完整的 Maven 坐标
 - read_jar_source: 读取 Maven 依赖中的 Java 类源代码
 - read_project_code: 读取本地项目中的源代码
 - list_all_project: 列举项目目录下的所有项目
@@ -102,6 +104,36 @@ class EasyCodeReaderServer:
         async def handle_list_tools() -> List[Tool]:
             """列出可用的工具"""
             return [
+                Tool(
+                    name="search_artifact",
+                    description=(
+                        "在本地 Maven 仓库中搜索指定的 artifact，返回完整的 Maven 坐标（groupId:artifactId:version）。"
+                        "适用场景：当只知道 artifactId 和部分信息（如从类路径 'xxx.jar!/com/example/...' 或 JAR 文件名推断）时，查找完整的 Maven 坐标。"
+                        "搜索策略：递归遍历 Maven 仓库目录结构（groupId/artifactId/version），匹配 artifactId 目录名。"
+                        "支持过滤条件：可选的 version_pattern（版本号模糊匹配）和 group_id_hint（groupId 部分匹配）。"
+                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_count。"
+                        "典型工作流：search_artifact 查找坐标 → 从结果中选择正确的坐标 → 使用 read_jar_source 读取源码。"
+                        "性能提示：如果仓库较大，建议提供 group_id_hint 参数缩小搜索范围。"
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "artifact_id": {
+                                "type": "string",
+                                "description": "Maven artifact ID（例如：spring-core）"
+                            },
+                            "version_pattern": {
+                                "type": "string",
+                                "description": "可选：版本号模糊匹配模式（例如：1.0.0、20251110、SNAPSHOT），会匹配包含此字符串的版本"
+                            },
+                            "group_id_hint": {
+                                "type": "string",
+                                "description": "可选：groupId 提示，用于缩小搜索范围（例如：com.alibaba、org.springframework），会匹配包含此字符串的 groupId"
+                            }
+                        },
+                        "required": ["artifact_id"]
+                    }
+                ),
                 Tool(
                     name="read_jar_source",
                     description=(
@@ -240,6 +272,8 @@ class EasyCodeReaderServer:
                     return await self._list_all_project(**arguments)
                 elif name == "list_project_files":
                     return await self._list_project_files(**arguments)
+                elif name == "search_artifact":
+                    return await self._search_artifact(**arguments)
                 else:
                     logger.error(f"未知工具: {name}")
                     raise ValueError(f"Unknown tool: {name}")
@@ -315,10 +349,11 @@ class EasyCodeReaderServer:
         guide_text += f"- **当前配置：** `{project_dir}`\n"
         guide_text += "- **用途：** 指定本地项目代码的根目录，用于读取本地项目源码。\n\n"
         guide_text += "## 提供的工具\n\n"
-        guide_text += "1. **read_jar_source** - 读取 Maven 依赖中的 Java 类源代码\n"
-        guide_text += "2. **read_project_code** - 读取本地项目中的源代码\n"
-        guide_text += "3. **list_all_project** - 列举项目目录下的所有项目\n"
-        guide_text += "4. **list_project_files** - 列出项目中的源代码和配置文件\n\n"
+        guide_text += "1. **search_artifact** - 在本地 Maven 仓库中搜索 artifact，返回完整的 Maven 坐标\n"
+        guide_text += "2. **read_jar_source** - 读取 Maven 依赖中的 Java 类源代码\n"
+        guide_text += "3. **read_project_code** - 读取本地项目中的源代码\n"
+        guide_text += "4. **list_all_project** - 列举项目目录下的所有项目\n"
+        guide_text += "5. **list_project_files** - 列出项目中的源代码和配置文件\n\n"
         guide_text += "## 项目仓库\n\n"
         guide_text += "- [GitHub 仓库](https://github.com/FangYuan33/easy-code-reader)\n\n"
         guide_text += "## 技术细节\n\n"
@@ -370,20 +405,48 @@ class EasyCodeReaderServer:
         # 回退到反编译
         jar_path = self._get_jar_path(group_id, artifact_id, version)
         if not jar_path or not jar_path.exists():
+            # 提取 groupId 的前缀部分用于搜索建议（取前1-2段）
+            group_parts = group_id.split('.')
+            if len(group_parts) >= 2:
+                # 推荐使用前2段，如 com.alibaba.nacos.api -> com.alibaba
+                suggested_hint = '.'.join(group_parts[:2])
+            elif len(group_parts) == 1:
+                # 只有1段，直接使用，如 com -> com
+                suggested_hint = group_parts[0]
+            else:
+                suggested_hint = None
+            
             error_msg = (
                 f"❌ 未找到 JAR 文件: {group_id}:{artifact_id}:{version}\n\n"
                 f"Maven 仓库路径: {self.maven_home}\n\n"
                 f"可能的原因：\n"
-                f"1. Maven 坐标信息（groupId/artifactId/version）不正确\n"
+                f"1. Maven 坐标信息（特别是 groupId）可能不正确\n"
                 f"2. 该依赖尚未下载到本地 Maven 仓库\n\n"
                 f"建议排查步骤（按优先级）：\n"
-                f"1. 如果有项目的 pom.xml 文件，使用 read_project_code 工具读取\n"
+                f"1. 🔍 **强烈推荐：使用 search_artifact 工具查找正确的 Maven 坐标**\n"
+                f"   - 必填参数 artifact_id: '{artifact_id}'\n"
+                f"   - 可选参数 version_pattern: '{version}' 缩小搜索范围\n"
+            )
+            
+            # 添加 group_id_hint 的智能建议
+            if suggested_hint:
+                error_msg += (
+                    f"   - ⚠️ 重要：如需提供 group_id_hint 参数，建议使用较短的前缀以避免过度限制\n"
+                    f"     • 推荐使用: '{suggested_hint}' (groupId 的前2段)\n"
+                    f"     • 或者更宽泛: '{group_parts[0]}' (groupId 的第1段)\n"
+                    f"     • 避免使用完整的: '{group_id}' (可能因拼写错误而搜不到)\n"
+                )
+            else:
+                error_msg += (
+                    f"   - 💡 提示：group_id_hint 参数是可选的，不确定时可以不传\n"
+                )
+            
+            error_msg += (
+                f"   - 该工具会在本地 Maven 仓库中搜索所有匹配的完整坐标\n"
+                f"2. 如果有项目的 pom.xml 文件，使用 read_project_code 工具读取\n"
                 f"   - 在 <dependencies> 部分查找正确的 groupId、artifactId 和 version\n"
-                f"   - 注意：groupId 和 artifactId 可能与直观理解不同（如 'spring-core' 的 groupId 是 'org.springframework'）\n"
-                f"2. 确认坐标信息正确后，重新调用 read_jar_source 工具\n"
-                f"3. 如果坐标正确但 JAR 不存在，需要在项目目录执行 Maven 构建命令：\n"
-                f"   - mvn dependency:resolve (下载所有依赖)\n"
-                f"   - 或 mvn clean install (完整构建)"
+                f"   - 注意：groupId 和 artifactId 可能与直观理解不同\n"
+                f"3. 确认坐标信息正确后，重新调用 read_jar_source 工具\n"
             )
             logger.warning(error_msg)
             return [TextContent(type="text", text=error_msg)]
@@ -939,6 +1002,241 @@ class EasyCodeReaderServer:
         except Exception as e:
             logger.error(f"从 sources jar 提取失败 {sources_jar}: {e}")
         return None
+
+    async def _search_artifact(self, artifact_id: str,
+                               version_pattern: Optional[str] = None,
+                               group_id_hint: Optional[str] = None) -> List[TextContent]:
+        """
+        在本地 Maven 仓库中搜索 artifact
+        
+        工作原理：
+        1. 遍历 Maven 仓库的目录结构（groupId/artifactId/version）
+        2. 查找匹配 artifact_id 的目录
+        3. 应用可选的过滤条件（version_pattern, group_id_hint）
+        4. 返回所有匹配的 Maven 坐标及其 JAR 文件信息
+        
+        性能优化：
+        - 如果提供 group_id_hint，会提前过滤不匹配的 groupId 目录，显著提升搜索速度
+        - 使用迭代而非递归遍历，避免深度嵌套带来的性能开销
+
+        参数:
+            artifact_id: Maven artifact ID（必填）
+            version_pattern: 版本号模糊匹配模式（可选，不区分大小写）
+            group_id_hint: groupId 提示，用于缩小搜索范围（可选，不区分大小写）
+
+        返回:
+            包含所有匹配坐标的 JSON 结果，包含：
+            - artifact_id: 搜索的 artifact ID
+            - version_pattern: 使用的版本过滤模式
+            - group_id_hint: 使用的 groupId 过滤提示
+            - total_matches: 匹配数量
+            - searched_dirs: 搜索的目录数量（用于性能分析）
+            - elapsed_seconds: 搜索耗时
+            - matches: 匹配结果列表
+            - hint: AI 友好的操作提示
+        """
+        # 输入验证
+        if not artifact_id or not artifact_id.strip():
+            return [TextContent(type="text", text="错误: artifact_id 不能为空")]
+
+        # 规范化输入（去除首尾空格）
+        artifact_id = artifact_id.strip()
+        if version_pattern:
+            version_pattern = version_pattern.strip()
+        if group_id_hint:
+            group_id_hint = group_id_hint.strip()
+
+        logger.info(
+            f"开始搜索 artifact: {artifact_id}, version_pattern: {version_pattern}, group_id_hint: {group_id_hint}")
+
+        # 检查 Maven 仓库是否存在
+        if not self.maven_home.exists():
+            return [TextContent(
+                type="text",
+                text=f"错误: Maven 仓库不存在: {self.maven_home}\n请检查 Maven 仓库配置"
+            )]
+
+        results = []
+        searched_dirs = 0
+        start_time = asyncio.get_event_loop().time()
+
+        def search_maven_repo(base_path: Path):
+            """
+            递归搜索 Maven 仓库
+            
+            Maven 仓库结构: {maven_repo}/{groupId}/{artifactId}/{version}/
+            例如: ~/.m2/repository/org/springframework/spring-core/5.3.21/
+            
+            搜索策略：
+            1. 遍历第一层目录（通常是 groupId 的第一部分，如 'org', 'com'）
+            2. 在每个分组下查找 artifactId 目录
+            3. 提取完整的 groupId 并应用 group_id_hint 过滤（如果有）
+            4. 在 artifactId 下遍历所有版本目录
+            5. 应用版本过滤（如果有）
+            6. 验证是否有有效的 JAR 文件
+            """
+            nonlocal searched_dirs
+
+            try:
+                # 遍历仓库根目录的第一层（通常是 groupId 的第一部分）
+                for first_level in base_path.iterdir():
+                    if not first_level.is_dir() or first_level.name.startswith('.'):
+                        continue
+
+                    # 递归查找 artifactId 目录
+                    # 注意：这里使用 rglob 可能会遍历很多目录
+                    for group_dir in first_level.rglob('*'):
+                        searched_dirs += 1
+
+                        if not group_dir.is_dir():
+                            continue
+
+                        # 检查是否是目标 artifact_id 目录
+                        artifact_dir = group_dir / artifact_id
+                        if not artifact_dir.exists() or not artifact_dir.is_dir():
+                            continue
+
+                        try:
+                            # 提取 groupId（从 Maven 仓库路径推断）
+                            rel_path = artifact_dir.parent.relative_to(base_path)
+                            group_id = str(rel_path).replace(os.sep, '.')
+
+                            # 如果提供了 group_id_hint，进行精确过滤（不区分大小写）
+                            if group_id_hint and group_id_hint.lower() not in group_id.lower():
+                                continue
+
+                            # 遍历所有版本目录
+                            for version_dir in artifact_dir.iterdir():
+                                if not version_dir.is_dir():
+                                    continue
+
+                                version = version_dir.name
+
+                                # 版本号过滤（不区分大小写）
+                                if version_pattern and version_pattern.lower() not in version.lower():
+                                    continue
+
+                                # 验证该版本是否有 JAR 文件（排除 sources 和 javadoc）
+                                jar_files = [
+                                    f for f in version_dir.glob(f"{artifact_id}*.jar")
+                                    if not f.name.endswith('-sources.jar')
+                                       and not f.name.endswith('-javadoc.jar')
+                                ]
+
+                                if jar_files:
+                                    # 获取 JAR 文件详情
+                                    jar_details = []
+                                    for jar_file in jar_files:
+                                        jar_details.append({
+                                            "name": jar_file.name,
+                                            "size_mb": round(jar_file.stat().st_size / 1024 / 1024, 2)
+                                        })
+
+                                    results.append({
+                                        "group_id": group_id,
+                                        "artifact_id": artifact_id,
+                                        "version": version,
+                                        "coordinate": f"{group_id}:{artifact_id}:{version}",
+                                        "jar_count": len(jar_files),
+                                        "jar_files": jar_details,
+                                        "path": str(version_dir)
+                                    })
+
+                                    logger.info(f"找到匹配: {group_id}:{artifact_id}:{version}")
+
+                        except Exception as e:
+                            logger.warning(f"处理路径 {artifact_dir} 时出错: {e}")
+                            continue
+
+            except PermissionError as e:
+                logger.warning(f"无权限访问目录 {base_path}: {e}")
+            except Exception as e:
+                logger.error(f"搜索 Maven 仓库时出错: {e}", exc_info=True)
+
+        # 执行搜索
+        search_maven_repo(self.maven_home)
+
+        # 计算搜索耗时
+        elapsed_time = round(asyncio.get_event_loop().time() - start_time, 2)
+
+        # 按 groupId 和 version 排序结果（version 倒序，最新版本在前）
+        results.sort(key=lambda x: (x['group_id'], x['version']), reverse=True)
+
+        # 构建返回结果
+        result = {
+            "artifact_id": artifact_id,
+            "version_pattern": version_pattern if version_pattern else "none",
+            "group_id_hint": group_id_hint if group_id_hint else "none",
+            "total_matches": len(results),
+            "searched_dirs": searched_dirs,
+            "elapsed_seconds": elapsed_time,
+            "matches": results
+        }
+
+        # 添加智能提示（针对不同场景提供不同的 AI 友好提示）
+        if len(results) == 0:
+            # 场景1: 未找到任何匹配
+            result["hint"] = (
+                f"❌ 未找到 artifact '{artifact_id}' 的任何匹配。\n\n"
+                "可能原因：\n"
+                "1. artifact_id 拼写不正确（注意大小写和连字符 '-'）\n"
+                "2. 该依赖尚未下载到本地 Maven 仓库\n"
+                f"3. Maven 仓库路径可能不正确: {self.maven_home}\n"
+                + (f"4. group_id_hint '{group_id_hint}' 过滤条件过于严格\n" if group_id_hint else "")
+                + (f"5. version_pattern '{version_pattern}' 过滤条件过于严格\n" if version_pattern else "")
+                + "\n建议操作（按优先级）：\n"
+                "1. 🔍 重新搜索，不传入过滤参数，查看是否有其他版本或 groupId\n"
+                "2. 📄 如果有项目的 pom.xml，使用 read_project_code 工具查看依赖配置\n"
+                "3. ✅ 确认 Maven 仓库配置路径是否正确"
+            )
+        elif len(results) == 1:
+            # 场景2: 找到唯一匹配（最理想的情况）
+            match = results[0]
+            result["hint"] = (
+                f"✅ 找到唯一匹配！可以直接使用。\n\n"
+                f"📦 Maven 坐标: {match['coordinate']}\n"
+                f"📁 路径: {match['path']}\n"
+                f"📊 JAR 文件数: {match['jar_count']}\n\n"
+                "📌 下一步操作：\n"
+                f"使用 read_jar_source 工具读取源代码，参数配置：\n"
+                f"  • group_id: {match['group_id']}\n"
+                f"  • artifact_id: {match['artifact_id']}\n"
+                f"  • version: {match['version']}\n"
+                f"  • class_name: <完全限定的类名，如 com.example.MyClass>"
+            )
+        elif len(results) <= 5:
+            # 场景3: 找到少量匹配（2-5个），列出所有坐标供选择
+            coords_list = "\n".join([f"  {i + 1}. {r['coordinate']}" for i, r in enumerate(results)])
+            result["hint"] = (
+                f"🎯 找到 {len(results)} 个匹配的 artifact，请从中选择：\n\n"
+                f"{coords_list}\n\n"
+                "💡 选择建议：\n"
+                "• 通常选择最新的版本（列表已按版本倒序排列）\n"
+                "• 如果有 SNAPSHOT 版本，查看时间戳选择最新的\n"
+                "• 确认 groupId 是否符合预期\n\n"
+                "📌 选定后使用 read_jar_source 工具读取源代码"
+            )
+        else:
+            # 场景4: 找到大量匹配（>5个），建议使用过滤
+            result["hint"] = (
+                f"🔍 找到 {len(results)} 个匹配的 artifact，结果较多。\n\n"
+                "建议通过以下方式缩小范围：\n"
+                "1. 🏷️  使用 version_pattern 参数过滤版本\n"
+                "   • 示例：'1.0.0'（匹配特定版本）\n"
+                "   • 示例：'20251110'（匹配 SNAPSHOT 时间戳）\n"
+                "   • 示例：'RELEASE'（只看正式版本）\n"
+                "2. 🏢 使用 group_id_hint 参数过滤 groupId\n"
+                "   • 示例：'com.alibaba'（阿里巴巴的包）\n"
+                "   • 示例：'org.springframework'（Spring 框架的包）\n\n"
+                "💡 提示：\n"
+                "• 结果已按 groupId 和版本排序\n"
+                "• 同一 groupId 下，最新版本在前\n"
+                "• 找到目标坐标后，使用 read_jar_source 工具读取源代码"
+            )
+
+        logger.info(f"搜索完成: 找到 {len(results)} 个匹配，耗时 {elapsed_time}s，搜索了 {searched_dirs} 个目录")
+
+        return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
 
     async def run(self):
         """运行 MCP 服务器"""
