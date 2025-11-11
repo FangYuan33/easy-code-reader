@@ -1062,7 +1062,7 @@ class EasyCodeReaderServer:
 
         def search_maven_repo(base_path: Path):
             """
-            递归搜索 Maven 仓库
+            遍历搜索 Maven 仓库
             
             Maven 仓库结构: {maven_repo}/{groupId}/{artifactId}/{version}/
             例如: ~/.m2/repository/org/springframework/spring-core/5.3.21/
