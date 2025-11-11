@@ -1118,7 +1118,7 @@ class EasyCodeReaderServer:
 
                                 # 验证该版本是否有 JAR 文件（排除 sources 和 javadoc）
                                 jar_files = [
-                                    f for f in version_dir.glob(f"{artifact_id}*.jar")
+                                    f for f in version_dir.glob(f"{artifact_id}-*.jar")
                                     if not f.name.endswith('-sources.jar')
                                        and not f.name.endswith('-javadoc.jar')
                                 ]
