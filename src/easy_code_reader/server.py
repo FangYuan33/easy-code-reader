@@ -33,6 +33,7 @@ from .decompiler import JavaDecompiler
 
 # 配置日志系统
 import os
+
 log_file = os.path.join(os.path.dirname(__file__), "easy_code_reader.log")
 logging.basicConfig(
     level=logging.INFO,  # 生产环境使用 INFO 级别
@@ -44,13 +45,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 class EasyCodeReaderServer:
     """
     Easy Code Reader MCP 服务器
     
     提供从 Maven 依赖中读取 Java 源代码的功能。
     """
-    
+
     def __init__(self, maven_repo_path: Optional[str] = None, project_dir: Optional[str] = None):
         """
         初始化 Easy Code Reader MCP 服务器
@@ -60,22 +62,22 @@ class EasyCodeReaderServer:
             project_dir: 项目目录路径（可选）
         """
         logger.info("正在初始化 MCP 服务器...")
-        
+
         # 创建 MCP 服务器实例
         self.server = Server(Config.SERVER_NAME)
-        
+
         # 设置 Maven 仓库路径
         if maven_repo_path:
             Config.set_maven_home(maven_repo_path)
-        
+
         self.maven_home = Config.get_maven_home()
-        
+
         # 检查 Maven 仓库是否存在
         if not self.maven_home.exists():
             logger.warning(f"Maven 仓库不存在: {self.maven_home}")
         else:
             logger.info(f"Maven 仓库: {self.maven_home}")
-        
+
         # 设置项目目录路径
         self.project_dir = Path(project_dir) if project_dir else None
         if self.project_dir:
@@ -83,19 +85,19 @@ class EasyCodeReaderServer:
                 logger.warning(f"项目目录不存在: {self.project_dir}")
             else:
                 logger.info(f"项目目录: {self.project_dir}")
-        
+
         # 初始化 Java 反编译器
         self.decompiler = JavaDecompiler()
         if not self.decompiler.fernflower_jar and not self.decompiler.cfr_jar:
             logger.error("未找到任何可用的反编译器，反编译功能将不可用")
-        
+
         # 设置 MCP 服务器处理程序
         self.setup_handlers()
         logger.info("MCP 服务器初始化完成")
-    
+
     def setup_handlers(self):
         """设置 MCP 服务器处理程序"""
-        
+
         @self.server.list_tools()
         async def handle_list_tools() -> List[Tool]:
             """列出可用的工具"""
@@ -113,23 +115,23 @@ class EasyCodeReaderServer:
                         "type": "object",
                         "properties": {
                             "group_id": {
-                                "type": "string", 
+                                "type": "string",
                                 "description": "Maven group ID (例如: org.springframework)"
                             },
                             "artifact_id": {
-                                "type": "string", 
+                                "type": "string",
                                 "description": "Maven artifact ID (例如: spring-core)"
                             },
                             "version": {
-                                "type": "string", 
+                                "type": "string",
                                 "description": "Maven version (例如: 5.3.21)"
                             },
                             "class_name": {
-                                "type": "string", 
+                                "type": "string",
                                 "description": "完全限定的类名 (例如: org.springframework.core.SpringVersion)"
                             },
                             "prefer_sources": {
-                                "type": "boolean", 
+                                "type": "boolean",
                                 "default": True,
                                 "description": "优先使用 sources jar 而不是反编译"
                             }
@@ -225,7 +227,7 @@ class EasyCodeReaderServer:
                     }
                 )
             ]
-        
+
         @self.server.call_tool()
         async def handle_call_tool(name: str, arguments: Any) -> List[TextContent]:
             """处理工具调用"""
@@ -244,7 +246,7 @@ class EasyCodeReaderServer:
             except Exception as e:
                 logger.error(f"工具 {name} 执行失败: {str(e)}", exc_info=True)
                 return [TextContent(type="text", text=f"Error: {str(e)}")]
-        
+
         @self.server.list_resources()
         async def handle_list_resources() -> List[Resource]:
             """列出可用的资源"""
@@ -258,7 +260,7 @@ class EasyCodeReaderServer:
                     mimeType="text/markdown"
                 )
             ]
-        
+
         @self.server.read_resource()
         async def handle_read_resource(uri) -> str:
             """读取资源内容
@@ -267,17 +269,17 @@ class EasyCodeReaderServer:
             """
             # 将 AnyUrl 对象转换为字符串
             uri_str = str(uri)
-            
+
             if uri_str == "easy-code-reader://guide":
                 return self._get_guide_content()
             else:
                 raise ValueError(f"Unknown resource URI: {uri_str}")
-    
+
     def _get_guide_content(self) -> str:
         """获取使用指南内容"""
         maven_repo = self.maven_home if self.maven_home else "~/.m2/repository"
         project_dir = self.project_dir if self.project_dir else "未配置"
-        
+
         # 使用普通字符串拼接，避免 f-string 中嵌套 JSON 导致的语法错误
         guide_text = "# Easy Code Reader 使用指南\n\n"
         guide_text += "## 功能介绍\n\n"
@@ -325,11 +327,11 @@ class EasyCodeReaderServer:
         guide_text += "- **支持的文件类型：** .java, .xml, .properties, .yaml, .json, .gradle 等\n\n"
         guide_text += "---\n\n"
         guide_text += "💡 **提示：** 使用 AI 助手时，可以直接描述你想读取的代码，AI 会自动选择合适的工具来获取源码。\n"
-        
+
         return guide_text
-    
+
     async def _read_jar_source(self, group_id: str, artifact_id: str, version: str,
-                              class_name: str, prefer_sources: bool = True) -> List[TextContent]:
+                               class_name: str, prefer_sources: bool = True) -> List[TextContent]:
         """
         从 jar 中提取源代码或反编译
         
@@ -349,7 +351,7 @@ class EasyCodeReaderServer:
             return [TextContent(type="text", text="错误: version 不能为空")]
         if not class_name or not class_name.strip():
             return [TextContent(type="text", text="错误: class_name 不能为空")]
-        
+
         # 首先尝试从 sources jar 提取
         if prefer_sources:
             sources_jar = self._get_sources_jar_path(group_id, artifact_id, version)
@@ -362,9 +364,9 @@ class EasyCodeReaderServer:
                         "source_type": "sources.jar",
                         "code": source_code
                     }
-                    
+
                     return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-        
+
         # 回退到反编译
         jar_path = self._get_jar_path(group_id, artifact_id, version)
         if not jar_path or not jar_path.exists():
@@ -385,7 +387,7 @@ class EasyCodeReaderServer:
             )
             logger.warning(error_msg)
             return [TextContent(type="text", text=error_msg)]
-        
+
         try:
             # 对于 SNAPSHOT 版本，实际反编译使用 -SNAPSHOT.jar，但缓存使用带时间戳的版本名
             actual_jar_to_decompile = jar_path
@@ -393,29 +395,30 @@ class EasyCodeReaderServer:
                 snapshot_jar = self._get_snapshot_jar_path(group_id, artifact_id, version)
                 if snapshot_jar and snapshot_jar.exists():
                     actual_jar_to_decompile = snapshot_jar
-            
+
             # decompile_class 现在返回 (code, source_type) 元组
             decompiled_code, source_type = self.decompiler.decompile_class(
-                actual_jar_to_decompile, class_name, cache_jar_name=jar_path.name if actual_jar_to_decompile != jar_path else None
+                actual_jar_to_decompile, class_name,
+                cache_jar_name=jar_path.name if actual_jar_to_decompile != jar_path else None
             )
-            
+
             if not decompiled_code:
                 logger.error(f"反编译失败: {class_name} from {group_id}:{artifact_id}:{version}")
-            
+
             result = {
                 "class_name": class_name,
                 "artifact": f"{group_id}:{artifact_id}:{version}",
                 "source_type": source_type,
                 "code": decompiled_code or "反编译失败"
             }
-            
+
             return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-            
+
         except Exception as e:
             logger.error(f"提取源代码时出错: {str(e)}", exc_info=True)
             return [TextContent(type="text", text=f"提取源代码时出错: {str(e)}")]
-    
-    async def _read_project_code(self, project_name: str, file_path: str, 
+
+    async def _read_project_code(self, project_name: str, file_path: str,
                                  project_dir: Optional[str] = None) -> List[TextContent]:
         """
         从本地项目目录中读取代码或配置文件
@@ -432,7 +435,7 @@ class EasyCodeReaderServer:
             return [TextContent(type="text", text="错误: project_name 不能为空")]
         if not file_path or not file_path.strip():
             return [TextContent(type="text", text="错误: file_path 不能为空")]
-        
+
         # 确定使用的项目目录
         target_dir = None
         if project_dir:
@@ -440,26 +443,27 @@ class EasyCodeReaderServer:
         elif self.project_dir:
             target_dir = self.project_dir
         else:
-            return [TextContent(type="text", text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
-        
+            return [TextContent(type="text",
+                                text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
+
         # 检查项目目录是否存在
         if not target_dir.exists():
             return [TextContent(type="text", text=f"错误: 项目目录不存在: {target_dir}")]
-        
+
         # 尝试查找文件
         # 1. 如果 file_path 看起来像是路径（包含 / 或文件扩展名），直接使用
         has_path_separator = '/' in file_path
-        has_extension = any(file_path.endswith(ext) for ext in ['.java', '.xml', '.properties', '.yaml', 
-                                                                   '.yml', '.json', '.gradle', '.md', 
-                                                                   '.txt', '.sql', '.sh', '.bat', '.conf'])
-        
+        has_extension = any(file_path.endswith(ext) for ext in ['.java', '.xml', '.properties', '.yaml',
+                                                                '.yml', '.json', '.gradle', '.md',
+                                                                '.txt', '.sql', '.sh', '.bat', '.conf'])
+
         if has_path_separator or has_extension:
             # 优先尝试：直接在 target_dir 下查找（适用于 file_path 包含完整相对路径的情况）
             file_path_direct = target_dir / file_path
             if file_path_direct.exists() and file_path_direct.is_file():
                 logger.info(f"直接在 project_dir 下找到文件: {file_path_direct}")
                 return await self._return_file_content(project_name, file_path, file_path_direct)
-            
+
             # 检查项目子目录是否存在
             project_path = target_dir / project_name
             if project_path.exists() and project_path.is_dir():
@@ -467,7 +471,7 @@ class EasyCodeReaderServer:
                 file_path_in_project = project_path / file_path
                 if file_path_in_project.exists() and file_path_in_project.is_file():
                     return await self._return_file_content(project_name, file_path, file_path_in_project)
-                
+
                 # 在子模块中查找
                 result = self._search_in_modules(project_path, file_path)
                 if result:
@@ -475,20 +479,20 @@ class EasyCodeReaderServer:
             else:
                 # 项目子目录不存在，但 file_path 是路径形式，已经在 target_dir 直接查找过了
                 logger.warning(f"在 {target_dir} 下未找到文件: {file_path}")
-        
+
         # 2. 如果 file_path 没有扩展名且不包含路径分隔符，可能是 Java 类名
         # 将类名转换为路径，搜索可能的 .java 文件
         if not has_extension and not has_path_separator:
             # 支持 Java 类名格式: com.example.MyClass -> com/example/MyClass.java
             class_path = file_path.replace('.', '/')
-            
+
             # 常见的源代码路径模式
             search_patterns = [
                 f"src/main/java/{class_path}.java",
                 f"src/{class_path}.java",
                 f"{class_path}.java",
             ]
-            
+
             # 检查项目子目录是否存在
             project_path = target_dir / project_name
             if project_path.exists() and project_path.is_dir():
@@ -497,7 +501,7 @@ class EasyCodeReaderServer:
                     file_path_pattern = project_path / pattern
                     if file_path_pattern.exists() and file_path_pattern.is_file():
                         return await self._return_file_content(project_name, file_path, file_path_pattern)
-                
+
                 # 在子模块中搜索
                 for pattern in search_patterns:
                     result = self._search_in_modules(project_path, pattern)
@@ -523,12 +527,12 @@ class EasyCodeReaderServer:
                     f"src/{file_path}",  # src 目录
                     f"config/{file_path}",  # config 目录
                 ]
-                
+
                 for common_path in common_paths:
                     file_path_common = project_path / common_path
                     if file_path_common.exists() and file_path_common.is_file():
                         return await self._return_file_content(project_name, file_path, file_path_common)
-                
+
                 # 在子模块中搜索
                 for common_path in common_paths:
                     result = self._search_in_modules(project_path, common_path)
@@ -542,7 +546,7 @@ class EasyCodeReaderServer:
                     if file_path_direct.exists() and file_path_direct.is_file():
                         logger.info(f"在 project_dir 下找到文件: {file_path_direct}")
                         return await self._return_file_content(project_name, file_path, file_path_direct)
-        
+
         # 如果找不到文件，返回错误信息
         logger.warning(f"在项目 {project_name} 中未找到文件: {file_path}")
         return [TextContent(
@@ -555,7 +559,7 @@ class EasyCodeReaderServer:
                  f"2. 如果模糊匹配未找到，再使用 list_project_files 不传 file_name_pattern 查看完整文件列表\n"
                  f"3. 确认文件路径后，使用正确的相对路径重新调用 read_project_code"
         )]
-    
+
     def _search_in_modules(self, project_path: Path, relative_path: str) -> Optional[Path]:
         """
         在多模块项目的子模块中搜索文件
@@ -571,22 +575,24 @@ class EasyCodeReaderServer:
             # 查找所有子目录
             for subdir in project_path.iterdir():
                 # 跳过隐藏目录和常见的非模块目录
-                if not subdir.is_dir() or subdir.name.startswith('.') or subdir.name in ['target', 'build', 'node_modules', 'dist']:
+                if not subdir.is_dir() or subdir.name.startswith('.') or subdir.name in ['target', 'build',
+                                                                                         'node_modules', 'dist']:
                     continue
-                
+
                 # 检查是否是 Maven 或 Gradle 模块（包含 pom.xml 或 build.gradle）
-                if not ((subdir / 'pom.xml').exists() or (subdir / 'build.gradle').exists() or (subdir / 'build.gradle.kts').exists()):
+                if not ((subdir / 'pom.xml').exists() or (subdir / 'build.gradle').exists() or (
+                        subdir / 'build.gradle.kts').exists()):
                     continue
-                
+
                 # 在模块中查找文件
                 file_path = subdir / relative_path
                 if file_path.exists() and file_path.is_file():
                     return file_path
         except Exception as e:
             logger.error(f"搜索子模块时出错: {e}", exc_info=True)
-        
+
         return None
-    
+
     async def _return_file_content(self, project_name: str, class_name: str, file_path: Path) -> List[TextContent]:
         """
         读取文件内容并返回
@@ -612,9 +618,9 @@ class EasyCodeReaderServer:
         except Exception as e:
             logger.error(f"读取文件失败 {file_path}: {str(e)}", exc_info=True)
             return [TextContent(type="text", text=f"读取文件时出错: {str(e)}")]
-    
-    async def _list_all_project(self, project_dir: Optional[str] = None, 
-                                 project_name_pattern: Optional[str] = None) -> List[TextContent]:
+
+    async def _list_all_project(self, project_dir: Optional[str] = None,
+                                project_name_pattern: Optional[str] = None) -> List[TextContent]:
         """
         列举项目目录下所有的项目文件夹
         
@@ -629,31 +635,32 @@ class EasyCodeReaderServer:
         elif self.project_dir:
             target_dir = self.project_dir
         else:
-            return [TextContent(type="text", text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
-        
+            return [TextContent(type="text",
+                                text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
+
         # 检查项目目录是否存在
         if not target_dir.exists():
             return [TextContent(type="text", text=f"错误: 项目目录不存在: {target_dir}")]
-        
+
         # 获取所有子目录（项目）
         try:
             all_projects = [d.name for d in target_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
-            
+
             # 如果指定了项目名称模式，进行模糊匹配
             if project_name_pattern:
                 projects = [p for p in all_projects if project_name_pattern.lower() in p.lower()]
             else:
                 projects = all_projects
-            
+
             projects.sort()
-            
+
             result = {
                 "project_dir": str(target_dir),
                 "project_name_pattern": project_name_pattern if project_name_pattern else "none",
                 "total_projects": len(projects),
                 "projects": projects
             }
-            
+
             # 如果使用了项目名称模式但没有匹配到项目，添加提示
             if project_name_pattern and len(projects) == 0:
                 result["hint"] = (
@@ -674,15 +681,15 @@ class EasyCodeReaderServer:
                     "- 建议不传入 project_name_pattern 参数重新调用 list_all_project 查看完整项目列表"
                 )
                 result["total_all_projects"] = len(all_projects)
-            
+
             return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
         except Exception as e:
             logger.error(f"列举项目失败: {str(e)}", exc_info=True)
             return [TextContent(type="text", text=f"列举项目时出错: {str(e)}")]
 
-    async def _list_project_files(self, project_name: str, sub_path: Optional[str] = None, 
-                                   file_name_pattern: Optional[str] = None,
-                                   project_dir: Optional[str] = None) -> List[TextContent]:
+    async def _list_project_files(self, project_name: str, sub_path: Optional[str] = None,
+                                  file_name_pattern: Optional[str] = None,
+                                  project_dir: Optional[str] = None) -> List[TextContent]:
         """
         列出 Java 项目中的源代码文件和配置文件路径
         
@@ -705,7 +712,8 @@ class EasyCodeReaderServer:
         elif self.project_dir:
             target_dir = self.project_dir
         else:
-            return [TextContent(type="text", text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
+            return [TextContent(type="text",
+                                text="错误: 项目目录信息为空，请在启动时使用 --project-dir 参数或在调用时传入 project_dir 参数")]
 
         # 检查项目目录是否存在
         if not target_dir.exists():
@@ -742,7 +750,7 @@ class EasyCodeReaderServer:
             '.gradle', '.mvn',  # 构建工具缓存
             'test', 'tests'  # 测试目录
         }
-        
+
         # 需要忽略的路径模式（相对路径）
         IGNORED_PATH_PATTERNS = [
             'src/test',  # Maven/Gradle 测试目录
@@ -799,19 +807,19 @@ class EasyCodeReaderServer:
                     # 跳过隐藏文件和目录
                     if item.name.startswith('.') and item.name not in {'.gitignore', '.dockerignore'}:
                         continue
-                    
+
                     if item.is_dir():
                         # 跳过需要忽略的目录
                         if item.name in IGNORED_DIRS:
                             continue
-                        
+
                         # 构建相对路径
                         child_relative = f"{relative_path}/{item.name}" if relative_path else item.name
-                        
+
                         # 检查路径是否应该被忽略
                         if should_ignore_path(child_relative):
                             continue
-                        
+
                         # 递归处理子目录
                         collect_files(item, child_relative)
                     else:
@@ -840,7 +848,7 @@ class EasyCodeReaderServer:
             "total_files": len(file_paths),
             "files": sorted(file_paths)
         }
-        
+
         # 如果使用了文件名模式但没有匹配到文件，添加提示
         if file_name_pattern and len(file_paths) == 0:
             result["hint"] = (
@@ -861,12 +869,12 @@ class EasyCodeReaderServer:
             )
 
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
-    
+
     def _get_jar_path(self, group_id: str, artifact_id: str, version: str) -> Optional[Path]:
         """获取 jar 文件路径"""
         group_path = group_id.replace('.', os.sep)
         jar_dir = self.maven_home / group_path / artifact_id / version
-        
+
         # 对于 SNAPSHOT 版本，优先使用带时间戳的版本
         if version.endswith('-SNAPSHOT'):
             if jar_dir.exists():
@@ -875,31 +883,31 @@ class EasyCodeReaderServer:
                 timestamped_jars = [
                     f for f in jar_dir.glob(f"{artifact_id}-*.jar")
                     if not f.name.endswith('-sources.jar')
-                    and not f.name.endswith('-javadoc.jar')
-                    and not f.name.endswith('-SNAPSHOT.jar')
-                    and f.name.startswith(artifact_id)
+                       and not f.name.endswith('-javadoc.jar')
+                       and not f.name.endswith('-SNAPSHOT.jar')
+                       and f.name.startswith(artifact_id)
                 ]
-                
+
                 if timestamped_jars:
                     # 按文件名排序，获取最新的（时间戳最大的）
                     timestamped_jars.sort(reverse=True)
                     return timestamped_jars[0]
-        
+
         # 查找主 jar 文件
         main_jar = jar_dir / f"{artifact_id}-{version}.jar"
         if main_jar.exists():
             return main_jar
-        
+
         # 查找目录中的任何 jar 文件
         if jar_dir.exists():
-            jar_files = [f for f in jar_dir.glob("*.jar") 
-                        if not f.name.endswith('-sources.jar') 
-                        and not f.name.endswith('-javadoc.jar')]
+            jar_files = [f for f in jar_dir.glob("*.jar")
+                         if not f.name.endswith('-sources.jar')
+                         and not f.name.endswith('-javadoc.jar')]
             if jar_files:
                 return jar_files[0]
-        
+
         return None
-    
+
     def _get_snapshot_jar_path(self, group_id: str, artifact_id: str, version: str) -> Optional[Path]:
         """
         获取 SNAPSHOT jar 文件路径（不带时间戳）
@@ -907,20 +915,20 @@ class EasyCodeReaderServer:
         """
         if not version.endswith('-SNAPSHOT'):
             return None
-        
+
         group_path = group_id.replace('.', os.sep)
         jar_dir = self.maven_home / group_path / artifact_id / version
         snapshot_jar = jar_dir / f"{artifact_id}-{version}.jar"
-        
+
         return snapshot_jar if snapshot_jar.exists() else None
-    
+
     def _get_sources_jar_path(self, group_id: str, artifact_id: str, version: str) -> Optional[Path]:
         """获取 sources jar 文件路径"""
         group_path = group_id.replace('.', os.sep)
         jar_dir = self.maven_home / group_path / artifact_id / version
         sources_jar = jar_dir / f"{artifact_id}-{version}-sources.jar"
         return sources_jar if sources_jar.exists() else None
-    
+
     def _extract_from_sources_jar(self, sources_jar: Path, class_name: str) -> Optional[str]:
         """从 sources jar 中提取源代码"""
         try:
@@ -931,7 +939,7 @@ class EasyCodeReaderServer:
         except Exception as e:
             logger.error(f"从 sources jar 提取失败 {sources_jar}: {e}")
         return None
-    
+
     async def run(self):
         """运行 MCP 服务器"""
         logger.info("启动 MCP 服务器...")
