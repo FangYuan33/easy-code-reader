@@ -1281,13 +1281,11 @@ class EasyCodeReaderServer:
                 "可能原因：\n"
                 "1. artifact_id 拼写不正确（注意大小写和连字符 '-'）\n"
                 "2. 该依赖尚未下载到本地 Maven 仓库\n"
-                f"3. Maven 仓库路径可能不正确: {self.maven_home}\n"
-                + (f"4. group_id_hint '{group_id_hint}' 过滤条件过于严格\n" if group_id_hint else "")
-                + (f"5. version_pattern '{version_pattern}' 过滤条件过于严格\n" if version_pattern else "")
+                + (f"3. group_id_hint '{group_id_hint}' 过滤条件过于严格\n" if group_id_hint else "")
+                + (f"4. version_pattern '{version_pattern}' 过滤条件过于严格\n" if version_pattern else "")
                 + "\n建议操作（按优先级）：\n"
                 "1. 🔍 重新搜索，不传入过滤参数，查看是否有其他版本或 groupId\n"
                 "2. 📄 如果有项目的 pom.xml，使用 read_project_code 工具查看依赖配置\n"
-                "3. ✅ 确认 Maven 仓库配置路径是否正确"
             )
         elif len(results) == 1:
             # 场景2: 找到唯一匹配（最理想的情况）
