@@ -78,7 +78,12 @@ async def test_search_artifact_basic(temp_maven_repo):
     assert match["artifact_id"] == "test-artifact"
     assert match["version"] == "1.0.0"
     assert match["coordinate"] == "com.example:test-artifact:1.0.0"
-    assert match["jar_count"] == 1
+    
+    # 验证 jar_files 格式（字符串数组）
+    assert "jar_files" in match
+    assert isinstance(match["jar_files"], list)
+    assert len(match["jar_files"]) == 1
+    assert match["jar_files"][0] == "test-artifact-1.0.0.jar"
     
     # 验证提示信息（唯一匹配）
     assert "✅ 找到唯一匹配" in json_result["hint"]
@@ -243,7 +248,7 @@ async def test_search_artifact_snapshot_versions(temp_maven_repo):
 
 @pytest.mark.asyncio
 async def test_search_artifact_jar_file_details(temp_maven_repo):
-    """测试 JAR 文件详情返回"""
+    """测试 JAR 文件详情返回 - 新格式：字符串数组"""
     create_test_artifact(temp_maven_repo, "com.example", "jar-details", "1.0.0")
     
     server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
@@ -252,15 +257,17 @@ async def test_search_artifact_jar_file_details(temp_maven_repo):
     json_result = json.loads(result[0].text)
     match = json_result["matches"][0]
     
-    # 验证 JAR 文件详情
+    # 验证 JAR 文件详情 - 新格式
     assert "jar_files" in match
+    assert isinstance(match["jar_files"], list)
     assert len(match["jar_files"]) > 0
     
+    # 验证是字符串而非对象
     jar_file = match["jar_files"][0]
-    assert "name" in jar_file
-    assert "size_mb" in jar_file
-    assert jar_file["name"].endswith(".jar")
-    assert isinstance(jar_file["size_mb"], (int, float))
+    assert isinstance(jar_file, str)
+    assert jar_file.endswith(".jar")
+    # 不应包含 size_mb 字段（因为是字符串而非对象）
+    assert jar_file == "jar-details-1.0.0.jar"
 
 
 @pytest.mark.asyncio
@@ -285,8 +292,8 @@ async def test_search_artifact_excludes_sources_javadoc(temp_maven_repo):
     match = json_result["matches"][0]
     
     # 应该只统计主 JAR，排除 sources 和 javadoc
-    assert match["jar_count"] == 1
-    assert match["jar_files"][0]["name"] == "exclude-test-1.0.0.jar"
+    assert len(match["jar_files"]) == 1
+    assert match["jar_files"][0] == "exclude-test-1.0.0.jar"
 
 
 @pytest.mark.asyncio
@@ -609,6 +616,101 @@ async def test_search_artifact_version_sorting_multi_group(temp_maven_repo):
     for group_id, versions in matches_by_group.items():
         assert versions == expected_version_order, \
             f"{group_id} 的版本排序错误:\n  实际: {versions}\n  期望: {expected_version_order}"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_snapshot_with_main_jar(temp_maven_repo):
+    """测试 SNAPSHOT 版本：存在主 SNAPSHOT JAR 时，只返回主 JAR"""
+    # 创建 SNAPSHOT 版本目录
+    artifact_dir = temp_maven_repo / "com" / "example" / "snapshot-main" / "1.0.0-SNAPSHOT"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 创建主 SNAPSHOT JAR 和多个带时间戳的 JAR
+    for jar_name in [
+        "snapshot-main-1.0.0-SNAPSHOT.jar",
+        "snapshot-main-1.0.0-20251029.100000-1.jar",
+        "snapshot-main-1.0.0-20251030.085053-2.jar",
+        "snapshot-main-1.0.0-20251031.120000-3.jar"
+    ]:
+        jar_path = artifact_dir / jar_name
+        with zipfile.ZipFile(jar_path, 'w') as jar:
+            jar.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("snapshot-main")
+    
+    json_result = json.loads(result[0].text)
+    match = json_result["matches"][0]
+    
+    # 应该只返回主 SNAPSHOT JAR，忽略所有带时间戳的 JAR
+    assert len(match["jar_files"]) == 1
+    assert match["jar_files"][0] == "snapshot-main-1.0.0-SNAPSHOT.jar"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_snapshot_without_main_jar(temp_maven_repo):
+    """测试 SNAPSHOT 版本：不存在主 SNAPSHOT JAR 时，返回最新的带时间戳 JAR"""
+    # 创建 SNAPSHOT 版本目录
+    artifact_dir = temp_maven_repo / "com" / "example" / "snapshot-timestamped" / "1.0.0-SNAPSHOT"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 只创建带时间戳的 JAR（没有主 SNAPSHOT JAR）
+    for jar_name in [
+        "snapshot-timestamped-1.0.0-20251029.100000-1.jar",
+        "snapshot-timestamped-1.0.0-20251030.085053-2.jar",
+        "snapshot-timestamped-1.0.0-20251031.120000-3.jar"
+    ]:
+        jar_path = artifact_dir / jar_name
+        with zipfile.ZipFile(jar_path, 'w') as jar:
+            jar.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("snapshot-timestamped")
+    
+    json_result = json.loads(result[0].text)
+    match = json_result["matches"][0]
+    
+    # 应该只返回最新的带时间戳的 JAR
+    assert len(match["jar_files"]) == 1
+    # 按文件名排序，最新的应该是 20251031
+    assert match["jar_files"][0] == "snapshot-timestamped-1.0.0-20251031.120000-3.jar"
+
+
+@pytest.mark.asyncio
+async def test_search_artifact_snapshot_mixed_versions(temp_maven_repo):
+    """测试混合 SNAPSHOT 和非 SNAPSHOT 版本"""
+    # 创建非 SNAPSHOT 版本
+    create_test_artifact(temp_maven_repo, "com.example", "mixed-test", "1.0.0")
+    
+    # 创建 SNAPSHOT 版本（带时间戳 JAR）
+    snapshot_dir = temp_maven_repo / "com" / "example" / "mixed-test" / "1.0.1-SNAPSHOT"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    for jar_name in [
+        "mixed-test-1.0.1-20251030.085053-1.jar",
+        "mixed-test-1.0.1-20251031.120000-2.jar"
+    ]:
+        jar_path = snapshot_dir / jar_name
+        with zipfile.ZipFile(jar_path, 'w') as jar:
+            jar.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    result = await server._search_artifact("mixed-test")
+    
+    json_result = json.loads(result[0].text)
+    
+    # 应该找到两个版本
+    assert json_result["total_matches"] == 2
+    
+    # 检查每个版本的 JAR 文件
+    for match in json_result["matches"]:
+        if match["version"] == "1.0.0":
+            # 非 SNAPSHOT 版本，返回所有 JAR
+            assert len(match["jar_files"]) == 1
+            assert match["jar_files"][0] == "mixed-test-1.0.0.jar"
+        elif match["version"] == "1.0.1-SNAPSHOT":
+            # SNAPSHOT 版本，只返回最新的带时间戳 JAR
+            assert len(match["jar_files"]) == 1
+            assert match["jar_files"][0] == "mixed-test-1.0.1-20251031.120000-2.jar"
 
 
 if __name__ == "__main__":

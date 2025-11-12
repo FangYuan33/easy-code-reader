@@ -112,7 +112,8 @@ class EasyCodeReaderServer:
                         "适用场景：当只知道 artifactId 和部分信息（如从类路径 'xxx.jar!/com/example/...' 或 JAR 文件名推断）时，查找完整的 Maven 坐标。"
                         "搜索策略：递归遍历 Maven 仓库目录结构（groupId/artifactId/version），匹配 artifactId 目录名。"
                         "支持过滤条件：可选的 version_pattern（版本号模糊匹配）和 group_id_hint（groupId 部分匹配）。"
-                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_count。"
+                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_files（JAR 文件名数组）。"
+                        "SNAPSHOT 优化：对于 SNAPSHOT 版本，优先返回主 SNAPSHOT JAR，否则返回最新的带时间戳 JAR，减少上下文消耗。"
                         "典型工作流：search_artifact 查找坐标 → 从结果中选择正确的坐标 → 使用 read_jar_source 读取源码。"
                         "性能提示：如果仓库较大，建议提供 group_id_hint 参数缩小搜索范围。"
                     ),
@@ -1004,6 +1005,53 @@ class EasyCodeReaderServer:
             logger.error(f"从 sources jar 提取失败 {sources_jar}: {e}")
         return None
 
+    def _filter_snapshot_jars(self, jar_files: List[Path], artifact_id: str, version: str) -> List[Path]:
+        """
+        过滤 SNAPSHOT 版本的 JAR 文件，优化返回结果
+        
+        策略：
+        1. 如果存在主 SNAPSHOT JAR（如 artifact-1.0.0-SNAPSHOT.jar），只返回它
+        2. 否则，返回最新的带时间戳的 JAR（如 artifact-1.0.0-20251030.085053-1.jar）
+        3. 排除所有其他带时间戳的 SNAPSHOT JAR，减少上下文消耗
+        
+        参数:
+            jar_files: JAR 文件路径列表
+            artifact_id: Maven artifact ID
+            version: 版本号
+            
+        返回:
+            过滤后的 JAR 文件列表（通常只有一个）
+        """
+        if not version.endswith('-SNAPSHOT'):
+            # 非 SNAPSHOT 版本，直接返回所有 JAR
+            return jar_files
+        
+        # 查找主 SNAPSHOT JAR
+        main_snapshot_jar = f"{artifact_id}-{version}.jar"
+        for jar_file in jar_files:
+            if jar_file.name == main_snapshot_jar:
+                # 找到主 SNAPSHOT JAR，只返回它
+                return [jar_file]
+        
+        # 没有找到主 SNAPSHOT JAR，查找带时间戳的 JAR
+        # 格式如: artifact-1.0.0-20251030.085053-1.jar
+        timestamped_jars = []
+        for jar_file in jar_files:
+            name = jar_file.name
+            # 检查是否是带时间戳的 SNAPSHOT JAR（不是主 SNAPSHOT JAR，且符合时间戳格式）
+            if name.startswith(artifact_id) and name != main_snapshot_jar:
+                # 简单的时间戳格式检测：包含日期格式 YYYYMMDD
+                if any(char.isdigit() for char in name):
+                    timestamped_jars.append(jar_file)
+        
+        if timestamped_jars:
+            # 返回最新的带时间戳的 JAR（按文件名排序，最新的在前）
+            timestamped_jars.sort(reverse=True)
+            return [timestamped_jars[0]]
+        
+        # 既没有主 SNAPSHOT JAR，也没有带时间戳的 JAR，返回所有
+        return jar_files
+
     async def _search_artifact(self, artifact_id: str,
                                version_pattern: Optional[str] = None,
                                group_id_hint: Optional[str] = None) -> List[TextContent]:
@@ -1155,21 +1203,18 @@ class EasyCodeReaderServer:
                                 ]
 
                                 if jar_files:
-                                    # 获取 JAR 文件详情
-                                    jar_details = []
-                                    for jar_file in jar_files:
-                                        jar_details.append({
-                                            "name": jar_file.name,
-                                            "size_mb": round(jar_file.stat().st_size / 1024 / 1024, 2)
-                                        })
+                                    # 对 SNAPSHOT 版本应用过滤：只返回主 SNAPSHOT JAR 或最新的带时间戳 JAR
+                                    filtered_jars = self._filter_snapshot_jars(jar_files, artifact_id, version)
+                                    
+                                    # 简化格式：jar_files 只返回文件名字符串数组，不包含 size_mb
+                                    jar_names = [jar_file.name for jar_file in filtered_jars]
 
                                     results.append({
                                         "group_id": group_id,
                                         "artifact_id": artifact_id,
                                         "version": version,
                                         "coordinate": f"{group_id}:{artifact_id}:{version}",
-                                        "jar_count": len(jar_files),
-                                        "jar_files": jar_details,
+                                        "jar_files": jar_names,
                                         "path": str(version_dir)
                                     })
 
@@ -1290,11 +1335,13 @@ class EasyCodeReaderServer:
         elif len(results) == 1:
             # 场景2: 找到唯一匹配（最理想的情况）
             match = results[0]
+            jar_files = match['jar_files']
+            jar_info = f"📊 JAR 文件: {', '.join(jar_files)}\n\n" if jar_files else ""
             result["hint"] = (
                 f"✅ 找到唯一匹配！可以直接使用。\n\n"
                 f"📦 Maven 坐标: {match['coordinate']}\n"
                 f"📁 路径: {match['path']}\n"
-                f"📊 JAR 文件数: {match['jar_count']}\n\n"
+                f"{jar_info}"
                 "📌 下一步操作：\n"
                 f"使用 read_jar_source 工具读取源代码，参数配置：\n"
                 f"  • group_id: {match['group_id']}\n"
