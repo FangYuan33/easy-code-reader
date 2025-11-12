@@ -1246,9 +1246,10 @@ class EasyCodeReaderServer:
             1. 数字版本优先（按语义版本排序）
             2. 字符串版本其次（按字母顺序）
             
-            返回格式：(is_numeric, version_parts)
+            返回格式：(is_numeric, version_parts, priority, suffix)
             - is_numeric=1: 数字版本（优先级高）
             - is_numeric=0: 纯字符串版本（优先级低）
+            - 使用嵌套元组确保类型一致性，避免 int 与 str 比较错误
             """
             try:
                 parts = []
@@ -1273,28 +1274,25 @@ class EasyCodeReaderServer:
                     if suffix:
                         suffix_str = suffix[0].upper()
                         if 'SNAPSHOT' in suffix_str:
-                            parts.append(1)  # SNAPSHOT 优先级低
-                            parts.append(suffix_str)
+                            priority = 1  # SNAPSHOT 优先级低
                         elif 'RC' in suffix_str or 'ALPHA' in suffix_str or 'BETA' in suffix_str or 'M' == suffix_str[0]:
-                            parts.append(2)  # 预发布版本优先级中等
-                            parts.append(suffix_str)
+                            priority = 2  # 预发布版本优先级中等
                         else:
-                            parts.append(0)  # 其他后缀优先级更低
-                            parts.append(suffix_str)
+                            priority = 0  # 其他后缀优先级更低
                     else:
-                        parts.append(3)  # 正式版本优先级最高
-                        parts.append('')
+                        suffix_str = ''
+                        priority = 3  # 正式版本优先级最高
                     
-                    # 返回：(1, 数字版本元组) - 数字版本排在前面
-                    return (1, tuple(parts))
+                    # 返回：(1, 版本号元组, 优先级, 后缀) - 分离数字和字符串，避免类型比较错误
+                    return (1, tuple(parts), priority, suffix_str)
                 else:
                     # 非数字版本（如 latest, dev, nightly等）
-                    # 返回：(0, 原字符串) - 字符串版本排在后面，按字母顺序
-                    return (0, version_str)
+                    # 返回：(0, 原字符串, 0, '') - 字符串版本排在后面，按字母顺序
+                    return (0, version_str, 0, '')
                     
             except Exception:
                 # 解析完全失败，按原字符串排序，优先级最低
-                return (0, version_str)
+                return (0, version_str, 0, '')
 
         # 按 groupId 升序，version 降序排序结果
         from itertools import groupby
