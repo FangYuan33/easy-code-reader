@@ -155,7 +155,7 @@ public class Main {
 - Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
 
 <a id="quick-start-uvx"></a>
-## 快速接入（方法一）：使用 uvx（推荐 - 开箱即用）
+## 快速接入（方法一）：使用 uvx（推荐）
 
 如果您还没有安装 uv，可以通过以下方式快速安装：
 
@@ -165,9 +165,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windows
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 或使用 pip
-pip install uv
 ```
 
 或者参考 [uv 官网](https://github.com/astral-sh/uv) 进行安装，并配置 uv 的安装路径添加到系统 PATH 中，以便可以直接使用 `uvx` 命令。[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行，参考以下 MCP 客户端配置：
@@ -195,7 +192,7 @@ pip install uv
 
 将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
 
-## 快速接入（方法二）：使用 uv 安装到本地（不推荐）
+## 快速接入（方法二）：使用 uv 安装到本地
 
 如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
 

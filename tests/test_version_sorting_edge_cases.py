@@ -57,7 +57,7 @@ async def test_irregular_version_names(temp_maven_repo):
 
 @pytest.mark.asyncio
 async def test_mixed_numeric_and_string_versions(temp_maven_repo):
-    """测试数字和字符串混合的版本"""
+    """测试数字和字符串混合的版本（不再验证排序）"""
     versions = [
         "1.0.0",
         "latest",
@@ -76,16 +76,11 @@ async def test_mixed_numeric_and_string_versions(temp_maven_repo):
     json_result = json.loads(result[0].text)
     returned_versions = [m["version"] for m in json_result["matches"]]
     
-    print(f"\n混合版本排序: {returned_versions}")
+    print(f"\n混合版本返回: {returned_versions}")
     
-    # 关键验证：数字版本应该正确排序
-    numeric_versions = [v for v in returned_versions if v[0].isdigit()]
-    expected_numeric_order = ["2.0.0", "1.5.0", "1.0.0"]
-    
-    # 验证数字版本的相对顺序
-    numeric_indices = [returned_versions.index(v) for v in numeric_versions]
-    assert numeric_versions == expected_numeric_order, \
-        f"数字版本排序错误: {numeric_versions}"
+    # 验证所有版本都被返回（不验证顺序）
+    assert set(returned_versions) == set(versions), \
+        f"返回的版本不完整"
 
 
 @pytest.mark.asyncio
@@ -153,7 +148,7 @@ async def test_unicode_in_versions(temp_maven_repo):
 
 @pytest.mark.asyncio
 async def test_version_with_only_letters(temp_maven_repo):
-    """测试纯字母版本名称"""
+    """测试纯字母版本名称（不再验证排序）"""
     versions = [
         "alpha",
         "beta",
@@ -171,27 +166,25 @@ async def test_version_with_only_letters(temp_maven_repo):
     json_result = json.loads(result[0].text)
     returned_versions = [m["version"] for m in json_result["matches"]]
     
-    print(f"\n纯字母版本排序: {returned_versions}")
+    print(f"\n纯字母版本返回: {returned_versions}")
     
-    # 纯字母应该按字母顺序排序
-    letter_versions = [v for v in returned_versions if not any(c.isdigit() for c in v)]
-    assert sorted(letter_versions, reverse=True) == letter_versions or \
-           letter_versions == sorted(letter_versions, reverse=True), \
-        "纯字母版本应该按字母顺序排序"
+    # 验证所有版本都被返回（不验证顺序）
+    assert set(returned_versions) == set(versions), \
+        "返回的版本不完整"
 
 
 @pytest.mark.asyncio
 async def test_comparison_between_different_types(temp_maven_repo):
     """
-    测试不同类型版本的比较问题
-    这是最可能出问题的场景
+    测试不同类型版本的比较问题（不再验证排序）
+    验证所有版本都能正确返回
     """
     versions = [
-        "3.0.0",      # 数字元组: (3, 0, 0, 3)
-        "latest",     # 字符串元组: ("latest",)
-        "2.0.0",      # 数字元组: (2, 0, 0, 3)
-        "dev",        # 字符串元组: ("dev",)
-        "1.0.0",      # 数字元组: (1, 0, 0, 3)
+        "3.0.0",
+        "latest",
+        "2.0.0",
+        "dev",
+        "1.0.0",
     ]
     
     for version in versions:
@@ -204,18 +197,14 @@ async def test_comparison_between_different_types(temp_maven_repo):
         json_result = json.loads(result[0].text)
         returned_versions = [m["version"] for m in json_result["matches"]]
         
-        print(f"\n混合类型版本排序结果: {returned_versions}")
+        print(f"\n混合类型版本返回结果: {returned_versions}")
         
         # 关键验证：不应该抛出 TypeError
         assert json_result["total_matches"] == 5
         
-        # 数字版本应该按数字排序
-        numeric_versions = ["3.0.0", "2.0.0", "1.0.0"]
-        for i in range(len(numeric_versions) - 1):
-            idx1 = returned_versions.index(numeric_versions[i])
-            idx2 = returned_versions.index(numeric_versions[i + 1])
-            assert idx1 < idx2, \
-                f"数字版本排序错误: {numeric_versions[i]} 应该在 {numeric_versions[i + 1]} 之前"
+        # 验证所有版本都被返回（不验证顺序）
+        assert set(returned_versions) == set(versions), \
+            "返回的版本不完整"
         
     except TypeError as e:
         pytest.fail(f"不同类型版本比较时出现 TypeError: {e}")

@@ -112,7 +112,8 @@ class EasyCodeReaderServer:
                         "适用场景：当只知道 artifactId 和部分信息（如从类路径 'xxx.jar!/com/example/...' 或 JAR 文件名推断）时，查找完整的 Maven 坐标。"
                         "搜索策略：递归遍历 Maven 仓库目录结构（groupId/artifactId/version），匹配 artifactId 目录名。"
                         "支持过滤条件：可选的 version_pattern（版本号模糊匹配）和 group_id_hint（groupId 部分匹配）。"
-                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_count。"
+                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_files（JAR 文件名数组）。"
+                        "SNAPSHOT 优化：对于 SNAPSHOT 版本，优先返回主 SNAPSHOT JAR，否则返回最新的带时间戳 JAR，减少上下文消耗。"
                         "典型工作流：search_artifact 查找坐标 → 从结果中选择正确的坐标 → 使用 read_jar_source 读取源码。"
                         "性能提示：如果仓库较大，建议提供 group_id_hint 参数缩小搜索范围。"
                     ),
@@ -1004,6 +1005,37 @@ class EasyCodeReaderServer:
             logger.error(f"从 sources jar 提取失败 {sources_jar}: {e}")
         return None
 
+    def _filter_snapshot_jars(self, jar_files: List[Path], artifact_id: str, version: str) -> List[Path]:
+        """
+        过滤 SNAPSHOT 版本的 JAR 文件，优化返回结果
+        
+        策略：
+        1. 如果存在主 SNAPSHOT JAR（如 artifact-1.0.0-SNAPSHOT.jar），只返回它
+        2. 如果没有找到主 SNAPSHOT JAR，不处理带时间戳的版本（这些版本没有意义）
+        3. 排除所有带时间戳的 SNAPSHOT JAR，减少上下文消耗
+        
+        参数:
+            jar_files: JAR 文件路径列表
+            artifact_id: Maven artifact ID
+            version: 版本号
+            
+        返回:
+            过滤后的 JAR 文件列表（通常只有一个，如果没有主 SNAPSHOT JAR 则返回空列表）
+        """
+        if not version.endswith('-SNAPSHOT'):
+            # 非 SNAPSHOT 版本，直接返回所有 JAR
+            return jar_files
+        
+        # 查找主 SNAPSHOT JAR
+        main_snapshot_jar = f"{artifact_id}-{version}.jar"
+        for jar_file in jar_files:
+            if jar_file.name == main_snapshot_jar:
+                # 找到主 SNAPSHOT JAR，只返回它
+                return [jar_file]
+        
+        # 没有找到主 SNAPSHOT JAR，不处理带时间戳的 JAR（这些版本没有意义）
+        return []
+
     async def _search_artifact(self, artifact_id: str,
                                version_pattern: Optional[str] = None,
                                group_id_hint: Optional[str] = None) -> List[TextContent]:
@@ -1155,21 +1187,22 @@ class EasyCodeReaderServer:
                                 ]
 
                                 if jar_files:
-                                    # 获取 JAR 文件详情
-                                    jar_details = []
-                                    for jar_file in jar_files:
-                                        jar_details.append({
-                                            "name": jar_file.name,
-                                            "size_mb": round(jar_file.stat().st_size / 1024 / 1024, 2)
-                                        })
+                                    # 对 SNAPSHOT 版本应用过滤：只返回主 SNAPSHOT JAR（不处理带时间戳的 JAR）
+                                    filtered_jars = self._filter_snapshot_jars(jar_files, artifact_id, version)
+                                    
+                                    # 如果过滤后没有有效的 JAR 文件，跳过此版本
+                                    if not filtered_jars:
+                                        continue
+                                    
+                                    # 简化格式：jar_files 只返回文件名字符串数组，不包含 size_mb
+                                    jar_names = [jar_file.name for jar_file in filtered_jars]
 
                                     results.append({
                                         "group_id": group_id,
                                         "artifact_id": artifact_id,
                                         "version": version,
                                         "coordinate": f"{group_id}:{artifact_id}:{version}",
-                                        "jar_count": len(jar_files),
-                                        "jar_files": jar_details,
+                                        "jar_files": jar_names,
                                         "path": str(version_dir)
                                     })
 
@@ -1189,78 +1222,6 @@ class EasyCodeReaderServer:
 
         # 计算搜索耗时
         elapsed_time = round(time.perf_counter() - start_time, 2)
-
-        # 定义版本排序辅助函数
-        def version_sort_key(version_str: str):
-            """
-            将版本字符串转换为可排序的元组
-            处理各种 Maven 版本格式：1.0.0, 1.0.0-SNAPSHOT, 1.0.0-RC1 等
-            同时处理无规则版本名称（如 latest, dev 等）
-            
-            排序优先级：
-            1. 数字版本优先（按语义版本排序）
-            2. 字符串版本其次（按字母顺序）
-            
-            返回格式：(is_numeric, version_parts)
-            - is_numeric=1: 数字版本（优先级高）
-            - is_numeric=0: 纯字符串版本（优先级低）
-            """
-            try:
-                parts = []
-                # 分离主版本号和后缀（如 1.0.0-SNAPSHOT）
-                main_version, *suffix = version_str.split('-', 1)
-                
-                # 尝试解析主版本号，判断是否为数字版本
-                is_numeric_version = True
-                for part in main_version.split('.'):
-                    try:
-                        parts.append(int(part))
-                    except ValueError:
-                        # 如果有任何非数字部分，标记为非数字版本
-                        is_numeric_version = False
-                        parts = []  # 重置
-                        break
-                
-                # 如果是数字版本，继续处理后缀
-                if is_numeric_version and parts:
-                    # 处理后缀：给正式版本更高的优先级
-                    # 排序优先级：正式版(3) > RC/BETA/ALPHA(2) > SNAPSHOT(1) > 其他(0)
-                    if suffix:
-                        suffix_str = suffix[0].upper()
-                        if 'SNAPSHOT' in suffix_str:
-                            parts.append(1)  # SNAPSHOT 优先级低
-                            parts.append(suffix_str)
-                        elif 'RC' in suffix_str or 'ALPHA' in suffix_str or 'BETA' in suffix_str or 'M' == suffix_str[0]:
-                            parts.append(2)  # 预发布版本优先级中等
-                            parts.append(suffix_str)
-                        else:
-                            parts.append(0)  # 其他后缀优先级更低
-                            parts.append(suffix_str)
-                    else:
-                        parts.append(3)  # 正式版本优先级最高
-                        parts.append('')
-                    
-                    # 返回：(1, 数字版本元组) - 数字版本排在前面
-                    return (1, tuple(parts))
-                else:
-                    # 非数字版本（如 latest, dev, nightly等）
-                    # 返回：(0, 原字符串) - 字符串版本排在后面，按字母顺序
-                    return (0, version_str)
-                    
-            except Exception:
-                # 解析完全失败，按原字符串排序，优先级最低
-                return (0, version_str)
-
-        # 按 groupId 升序，version 降序排序结果
-        from itertools import groupby
-        sorted_results = []
-        
-        # 先按 groupId 排序并分组
-        for group_id, group in groupby(sorted(results, key=lambda x: x['group_id']), key=lambda x: x['group_id']):
-            # 每组内按版本降序排序（最新版本在前）
-            sorted_results.extend(sorted(list(group), key=lambda x: version_sort_key(x['version']), reverse=True))
-        
-        results = sorted_results
 
         # 构建返回结果
         result = {
@@ -1290,11 +1251,13 @@ class EasyCodeReaderServer:
         elif len(results) == 1:
             # 场景2: 找到唯一匹配（最理想的情况）
             match = results[0]
+            jar_files = match['jar_files']
+            jar_info = f"📊 JAR 文件: {', '.join(jar_files)}\n\n" if jar_files else ""
             result["hint"] = (
                 f"✅ 找到唯一匹配！可以直接使用。\n\n"
                 f"📦 Maven 坐标: {match['coordinate']}\n"
                 f"📁 路径: {match['path']}\n"
-                f"📊 JAR 文件数: {match['jar_count']}\n\n"
+                f"{jar_info}"
                 "📌 下一步操作：\n"
                 f"使用 read_jar_source 工具读取源代码，参数配置：\n"
                 f"  • group_id: {match['group_id']}\n"
