@@ -206,7 +206,7 @@ uv tool install easy-code-reader
 which easy-code-reader
 ```
 
-比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端：
+比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端，**注意 `args` 参数配置**，**注意 `args` 参数配置**，**注意 `args` 参数配置**：
 
 ```json
 {
@@ -236,6 +236,10 @@ uv tool install --upgrade easy-code-reader
 ### Q1: spawn uvx ENOENT spawn uvx ENOENT
 
 uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#quick-start-uvx)，并尝试重启 IDE 后再启动 MCP Server。
+
+### Q2: Downloading cpython-3.10.19-macos-aarch64-none (download) (17.7MiB) MCP error -32001: Request timed out
+
+Python 环境下载失败，尝试手动下载或重试下载，或者参考 [快速接入（方法二）](#quick-start-uvx)。
 
 ---
 
