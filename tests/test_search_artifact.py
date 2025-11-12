@@ -639,7 +639,7 @@ async def test_search_artifact_snapshot_with_main_jar(temp_maven_repo):
 
 @pytest.mark.asyncio
 async def test_search_artifact_snapshot_without_main_jar(temp_maven_repo):
-    """测试 SNAPSHOT 版本：不存在主 SNAPSHOT JAR 时，返回最新的带时间戳 JAR"""
+    """测试 SNAPSHOT 版本：不存在主 SNAPSHOT JAR 时，不返回带时间戳的 JAR（这些版本没有意义）"""
     # 创建 SNAPSHOT 版本目录
     artifact_dir = temp_maven_repo / "com" / "example" / "snapshot-timestamped" / "1.0.0-SNAPSHOT"
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -658,12 +658,9 @@ async def test_search_artifact_snapshot_without_main_jar(temp_maven_repo):
     result = await server._search_artifact("snapshot-timestamped")
     
     json_result = json.loads(result[0].text)
-    match = json_result["matches"][0]
     
-    # 应该只返回最新的带时间戳的 JAR
-    assert len(match["jar_files"]) == 1
-    # 按文件名排序，最新的应该是 20251031
-    assert match["jar_files"][0] == "snapshot-timestamped-1.0.0-20251031.120000-3.jar"
+    # 应该找不到匹配（因为只有带时间戳的 JAR，没有主 SNAPSHOT JAR）
+    assert json_result["total_matches"] == 0
 
 
 @pytest.mark.asyncio
@@ -672,7 +669,7 @@ async def test_search_artifact_snapshot_mixed_versions(temp_maven_repo):
     # 创建非 SNAPSHOT 版本
     create_test_artifact(temp_maven_repo, "com.example", "mixed-test", "1.0.0")
     
-    # 创建 SNAPSHOT 版本（带时间戳 JAR）
+    # 创建 SNAPSHOT 版本（只有带时间戳 JAR，没有主 SNAPSHOT JAR）
     snapshot_dir = temp_maven_repo / "com" / "example" / "mixed-test" / "1.0.1-SNAPSHOT"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     for jar_name in [
@@ -688,19 +685,14 @@ async def test_search_artifact_snapshot_mixed_versions(temp_maven_repo):
     
     json_result = json.loads(result[0].text)
     
-    # 应该找到两个版本
-    assert json_result["total_matches"] == 2
+    # 应该只找到非 SNAPSHOT 版本（SNAPSHOT 版本没有主 JAR，被跳过）
+    assert json_result["total_matches"] == 1
     
-    # 检查每个版本的 JAR 文件
-    for match in json_result["matches"]:
-        if match["version"] == "1.0.0":
-            # 非 SNAPSHOT 版本，返回所有 JAR
-            assert len(match["jar_files"]) == 1
-            assert match["jar_files"][0] == "mixed-test-1.0.0.jar"
-        elif match["version"] == "1.0.1-SNAPSHOT":
-            # SNAPSHOT 版本，只返回最新的带时间戳 JAR
-            assert len(match["jar_files"]) == 1
-            assert match["jar_files"][0] == "mixed-test-1.0.1-20251031.120000-2.jar"
+    # 验证只有非 SNAPSHOT 版本
+    match = json_result["matches"][0]
+    assert match["version"] == "1.0.0"
+    assert len(match["jar_files"]) == 1
+    assert match["jar_files"][0] == "mixed-test-1.0.0.jar"
 
 
 if __name__ == "__main__":

@@ -1011,8 +1011,8 @@ class EasyCodeReaderServer:
         
         策略：
         1. 如果存在主 SNAPSHOT JAR（如 artifact-1.0.0-SNAPSHOT.jar），只返回它
-        2. 否则，返回最新的带时间戳的 JAR（如 artifact-1.0.0-20251030.085053-1.jar）
-        3. 排除所有其他带时间戳的 SNAPSHOT JAR，减少上下文消耗
+        2. 如果没有找到主 SNAPSHOT JAR，不处理带时间戳的版本（这些版本没有意义）
+        3. 排除所有带时间戳的 SNAPSHOT JAR，减少上下文消耗
         
         参数:
             jar_files: JAR 文件路径列表
@@ -1020,7 +1020,7 @@ class EasyCodeReaderServer:
             version: 版本号
             
         返回:
-            过滤后的 JAR 文件列表（通常只有一个）
+            过滤后的 JAR 文件列表（通常只有一个，如果没有主 SNAPSHOT JAR 则返回空列表）
         """
         if not version.endswith('-SNAPSHOT'):
             # 非 SNAPSHOT 版本，直接返回所有 JAR
@@ -1033,24 +1033,8 @@ class EasyCodeReaderServer:
                 # 找到主 SNAPSHOT JAR，只返回它
                 return [jar_file]
         
-        # 没有找到主 SNAPSHOT JAR，查找带时间戳的 JAR
-        # 格式如: artifact-1.0.0-20251030.085053-1.jar
-        timestamped_jars = []
-        for jar_file in jar_files:
-            name = jar_file.name
-            # 检查是否是带时间戳的 SNAPSHOT JAR（不是主 SNAPSHOT JAR，且符合时间戳格式）
-            if name.startswith(artifact_id) and name != main_snapshot_jar:
-                # 简单的时间戳格式检测：包含日期格式 YYYYMMDD
-                if any(char.isdigit() for char in name):
-                    timestamped_jars.append(jar_file)
-        
-        if timestamped_jars:
-            # 返回最新的带时间戳的 JAR（按文件名排序，最新的在前）
-            timestamped_jars.sort(reverse=True)
-            return [timestamped_jars[0]]
-        
-        # 既没有主 SNAPSHOT JAR，也没有带时间戳的 JAR，返回所有
-        return jar_files
+        # 没有找到主 SNAPSHOT JAR，不处理带时间戳的 JAR（这些版本没有意义）
+        return []
 
     async def _search_artifact(self, artifact_id: str,
                                version_pattern: Optional[str] = None,
@@ -1203,8 +1187,12 @@ class EasyCodeReaderServer:
                                 ]
 
                                 if jar_files:
-                                    # 对 SNAPSHOT 版本应用过滤：只返回主 SNAPSHOT JAR 或最新的带时间戳 JAR
+                                    # 对 SNAPSHOT 版本应用过滤：只返回主 SNAPSHOT JAR（不处理带时间戳的 JAR）
                                     filtered_jars = self._filter_snapshot_jars(jar_files, artifact_id, version)
+                                    
+                                    # 如果过滤后没有有效的 JAR 文件，跳过此版本
+                                    if not filtered_jars:
+                                        continue
                                     
                                     # 简化格式：jar_files 只返回文件名字符串数组，不包含 size_mb
                                     jar_names = [jar_file.name for jar_file in filtered_jars]
