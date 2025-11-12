@@ -235,7 +235,7 @@ uv tool install --upgrade easy-code-reader
 
 ### Q1: spawn uvx ENOENT spawn uvx ENOENT
 
-uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [快速接入（方法一）](#quick-start-uvx)，并尝试重启 IDE 后再启动 MCP Server。
+uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [环境要求](#quick-start-uvx)，并尝试重启 IDE 后再启动 MCP Server。
 
 ### Q2: Downloading cpython-3.10.19-macos-aarch64-none (download) (17.7MiB) MCP error -32001: Request timed out
 
