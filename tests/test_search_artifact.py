@@ -92,7 +92,7 @@ async def test_search_artifact_basic(temp_maven_repo):
 
 @pytest.mark.asyncio
 async def test_search_artifact_multiple_versions(temp_maven_repo):
-    """测试搜索多个版本的同一 artifact"""
+    """测试搜索多个版本的同一 artifact（不再验证排序）"""
     # 创建多个版本
     create_test_artifact(temp_maven_repo, "com.example", "multi-version", "1.0.0")
     create_test_artifact(temp_maven_repo, "com.example", "multi-version", "1.1.0")
@@ -106,9 +106,9 @@ async def test_search_artifact_multiple_versions(temp_maven_repo):
     assert json_result["total_matches"] == 3
     assert len(json_result["matches"]) == 3
     
-    # 验证版本排序（倒序）
+    # 验证所有版本都被返回（不验证顺序）
     versions = [m["version"] for m in json_result["matches"]]
-    assert versions == sorted(versions, reverse=True)
+    assert set(versions) == {"1.0.0", "1.1.0", "2.0.0"}
     
     # 验证提示信息（少量匹配）
     assert "3 个匹配" in json_result["hint"]
@@ -524,14 +524,14 @@ async def test_search_artifact_hint_partial_match(temp_maven_repo):
 @pytest.mark.asyncio
 async def test_search_artifact_version_sorting(temp_maven_repo):
     """
-    测试版本号正确排序（修复字符串排序 bug）
+    测试搜索返回多个版本（不再验证排序）
     
     验证：
-    1. 版本号应该按语义版本排序，不是字母顺序
-    2. 1.10.0 > 1.9.0 > 1.2.0 > 1.1.0（正确）
-    3. 不应该是 1.9.0 > 1.10.0（字母顺序，错误）
+    1. 能找到所有创建的版本
+    2. 版本信息正确返回
+    注：版本排序已移除，结果顺序不保证
     """
-    # 创建多个版本，故意使用会导致字母排序错误的版本号
+    # 创建多个版本
     versions = ["1.0.0", "1.1.0", "1.2.0", "1.9.0", "1.10.0", "2.0.0"]
     for version in versions:
         create_test_artifact(temp_maven_repo, "com.example", "version-sort-test", version)
@@ -547,22 +547,14 @@ async def test_search_artifact_version_sorting(temp_maven_repo):
     # 提取返回的版本号列表
     returned_versions = [m["version"] for m in json_result["matches"]]
     
-    # 验证排序：应该是降序（最新版本在前）
-    # 正确顺序：2.0.0, 1.10.0, 1.9.0, 1.2.0, 1.1.0, 1.0.0
-    expected_order = ["2.0.0", "1.10.0", "1.9.0", "1.2.0", "1.1.0", "1.0.0"]
-    assert returned_versions == expected_order, \
-        f"版本排序错误:\n  实际: {returned_versions}\n  期望: {expected_order}"
-    
-    # 特别验证关键问题：1.10.0 应该在 1.9.0 之前（不是字母顺序）
-    idx_1_10 = returned_versions.index("1.10.0")
-    idx_1_9 = returned_versions.index("1.9.0")
-    assert idx_1_10 < idx_1_9, \
-        f"版本排序 bug: 1.10.0 (索引 {idx_1_10}) 应该在 1.9.0 (索引 {idx_1_9}) 之前"
+    # 验证所有版本都被返回（不验证顺序）
+    assert set(returned_versions) == set(versions), \
+        f"返回的版本不完整:\n  实际: {returned_versions}\n  期望: {versions}"
 
 
 @pytest.mark.asyncio
 async def test_search_artifact_version_sorting_with_suffixes(temp_maven_repo):
-    """测试带后缀的版本号排序（SNAPSHOT, RELEASE, RC 等）"""
+    """测试搜索带后缀的版本（不再验证排序）"""
     # 创建带各种后缀的版本
     versions = ["1.0.0", "1.0.0-SNAPSHOT", "1.0.0-RC1", "1.0.0-RC2", "1.1.0-SNAPSHOT", "1.1.0"]
     for version in versions:
@@ -579,16 +571,14 @@ async def test_search_artifact_version_sorting_with_suffixes(temp_maven_repo):
     # 提取版本号
     returned_versions = [m["version"] for m in json_result["matches"]]
     
-    # 验证 1.1.0 应该在所有 1.0.x 之前
-    idx_1_1_0 = returned_versions.index("1.1.0")
-    idx_1_0_0 = returned_versions.index("1.0.0")
-    assert idx_1_1_0 < idx_1_0_0, \
-        "1.1.0 应该排在 1.0.0 之前（更新的版本）"
+    # 验证所有版本都被返回（不验证顺序）
+    assert set(returned_versions) == set(versions), \
+        "返回的版本不完整"
 
 
 @pytest.mark.asyncio  
 async def test_search_artifact_version_sorting_multi_group(temp_maven_repo):
-    """测试多个 groupId 时，每个 group 内版本正确排序"""
+    """测试多个 groupId 时返回所有版本（不再验证排序）"""
     # 为不同的 groupId 创建版本
     for group in ["com.example", "org.test"]:
         for version in ["1.0.0", "1.9.0", "1.10.0", "2.0.0"]:
@@ -610,12 +600,12 @@ async def test_search_artifact_version_sorting_multi_group(temp_maven_repo):
             matches_by_group[group_id] = []
         matches_by_group[group_id].append(match["version"])
     
-    # 验证每个 group 内的版本排序
-    expected_version_order = ["2.0.0", "1.10.0", "1.9.0", "1.0.0"]
+    # 验证每个 group 都有 4 个版本
+    expected_versions = {"1.0.0", "1.9.0", "1.10.0", "2.0.0"}
     
     for group_id, versions in matches_by_group.items():
-        assert versions == expected_version_order, \
-            f"{group_id} 的版本排序错误:\n  实际: {versions}\n  期望: {expected_version_order}"
+        assert set(versions) == expected_versions, \
+            f"{group_id} 的版本不完整"
 
 
 @pytest.mark.asyncio
