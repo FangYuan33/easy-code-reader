@@ -108,9 +108,9 @@ class EasyCodeReaderServer:
                 Tool(
                     name="search_group_id",
                     description=(
-                        "根据 artifactId 和 package 前缀查找 Maven groupId。\n\n"
+                        "辅助 read_jar_source 工具的调用，在未知 groupId 的情况下，根据 artifactId 和 package 前缀查找 Maven groupId。\n\n"
                         "**使用场景：**\n"
-                        "当看到类路径如 `/baozang-trade-export-1.2.2.jar/com.jdd.baozang.trade.export.resource/QualityInspectionAssignmentResource.class` "
+                        "当看到类路径如 `/spring-context-5.0.0.RELEASE.jar/org.springframework.context/ApplicationContext.class` "
                         "但不知道完整 Maven 坐标时，使用此工具查找 groupId。\n\n"
                         "**工作原理：**\n"
                         "1. 在 Maven 仓库中搜索匹配的 artifact ID\n"
@@ -118,10 +118,10 @@ class EasyCodeReaderServer:
                         "3. 可选使用 version_hint 进一步过滤版本\n"
                         "4. 返回按 groupId 排序的匹配列表\n\n"
                         "**参数说明：**\n"
-                        "- artifact_id: JAR 名称（不含版本），如 \"baozang-trade-export\"\n"
-                        "- group_prefix: （可选）groupId 前缀（1-2 级），如 \"com.jdd\"\n"
-                        "  从类路径提取：com.jdd.baozang.trade.export → 使用 \"com.jdd\"\n"
-                        "- version_hint: （可选）版本提示，如 \"1.2.2\"、\"SNAPSHOT\"\n"
+                        "- artifact_id: JAR 名称（不含版本），如 \"spring-context\"\n"
+                        "- group_prefix: （可选）groupId 前缀（1-2 级），如 \"org.springframework\"\n"
+                        "  从类路径提取：org.springframework.context → 使用 \"org.springframework\"\n"
+                        "- version_hint: （可选）版本提示，如 \"5.0.0.RELEASE\"、\"SNAPSHOT\"\n"
                         "  ⚠️ 警告：如果版本信息不准确可能导致查不到结果\n\n"
                         "**返回结果：**\n"
                         "包含 groupId、匹配版本列表的详细信息。\n\n"
@@ -136,11 +136,11 @@ class EasyCodeReaderServer:
                         "properties": {
                             "artifact_id": {
                                 "type": "string",
-                                "description": "Maven artifact ID，不含版本号（例如：baozang-trade-export）"
+                                "description": "Maven artifact ID，不含版本号（例如：spring-context）"
                             },
                             "group_prefix": {
                                 "type": "string",
-                                "description": "可选：groupId 前缀（1-2 级），如 \"com.jdd\"。从类路径中提取：com.jdd.baozang.trade.export → 使用 \"com.jdd\"。用于缩小搜索范围，提升性能"
+                                "description": "可选：groupId 前缀（1-2 级），如 \"org.springframework\"。从类路径中提取：org.springframework.context → 使用 \"org.springframework\"。用于缩小搜索范围，提升性能"
                             },
                             "version_hint": {
                                 "type": "string",
@@ -153,11 +153,11 @@ class EasyCodeReaderServer:
                 Tool(
                     name="read_jar_source",
                     description=(
-                        "从 Maven 依赖中读取 Java 类的源代码。"
-                        "工作流程：1) 首先尝试从 -sources.jar 中提取原始源代码；2) 如果 sources jar 不存在，自动使用反编译器（CFR 或 Fernflower）反编译 class 文件。"
-                        "支持 SNAPSHOT 版本的智能处理，会自动查找带时间戳的最新版本。"
-                        "适用场景：阅读第三方库源码（如 Spring、MyBatis）、理解依赖实现细节、排查依赖相关问题。"
-                        "注意：需要提供完整的 Maven 坐标（group_id、artifact_id、version）和完全限定的类名（如 org.springframework.core.SpringVersion）。"
+                        "从 Maven 依赖中读取 Java 类的源代码。\n"
+                        "工作流程：1) 首先尝试从 -sources.jar 中提取原始源代码；2) 如果 sources jar 不存在，自动使用反编译器（CFR 或 Fernflower）反编译 class 文件。\n"
+                        "支持 SNAPSHOT 版本的智能处理，会自动查找带时间戳的最新版本。\n"
+                        "适用场景：阅读第三方库源码（如 Spring、MyBatis）、理解依赖实现细节、排查依赖相关问题。\n"
+                        "注意：需要提供完整的 Maven 坐标（group_id、artifact_id、version）和完全限定的类名（如 org.springframework.core.SpringVersion）。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -190,13 +190,13 @@ class EasyCodeReaderServer:
                 Tool(
                     name="read_project_code",
                     description=(
-                        "从本地项目目录中读取指定文件的源代码或配置文件内容。"
-                        "支持读取 Java 项目中的所有文件类型：Java 源代码、XML 配置、properties、YAML、JSON、Gradle 脚本、Markdown 文档等。"
-                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService，自动查找对应的 .java 文件）；2) 相对路径（如 src/main/resources/application.yml、pom.xml、core/src/main/java/com/example/MyClass.java）。"
-                        "自动支持多模块 Maven/Gradle 项目，会递归搜索子模块中的文件。"
-                        "搜索策略：优先在项目根目录查找，如果未找到则自动在所有子模块（包含 pom.xml 或 build.gradle 的目录）中搜索。"
-                        "适用场景：阅读本地项目源码、查看配置文件、分析项目结构、理解业务逻辑实现。"
-                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files（建议带 file_name_pattern 参数进行模糊匹配）查看文件列表 → 使用本工具读取具体文件。"
+                        "从本地项目目录中读取指定文件的源代码或配置文件内容。\n"
+                        "支持读取 Java 项目中的所有文件类型：Java 源代码、XML 配置、properties、YAML、JSON、Gradle 脚本、Markdown 文档等。\n"
+                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService，自动查找对应的 .java 文件）；2) 相对路径（如 src/main/resources/application.yml、pom.xml、core/src/main/java/com/example/MyClass.java）。\n"
+                        "自动支持多模块 Maven/Gradle 项目，会递归搜索子模块中的文件。\n"
+                        "搜索策略：优先在项目根目录查找，如果未找到则自动在所有子模块（包含 pom.xml 或 build.gradle 的目录）中搜索。\n"
+                        "适用场景：阅读本地项目源码、查看配置文件、分析项目结构、理解业务逻辑实现。\n"
+                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files（建议带 file_name_pattern 参数进行模糊匹配）查看文件列表 → 使用本工具读取具体文件。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -220,12 +220,12 @@ class EasyCodeReaderServer:
                 Tool(
                     name="list_all_project",
                     description=(
-                        "列举项目目录下所有的项目文件夹名称。"
-                        "返回项目目录中所有子目录的名称列表（自动过滤隐藏目录如 .git）。"
-                        "支持通过 project_name_pattern 进行项目名称模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标项目。"
-                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称；4) 快速查找特定名称模式的项目。"
-                        "推荐使用：这是探索本地项目的第一步，先用此工具获取所有项目列表，再使用 list_project_files 查看具体项目的文件结构。"
-                        "返回格式：包含项目目录路径、项目总数和项目名称列表的 JSON 对象。"
+                        "列举项目目录下所有的项目文件夹名称。\n"
+                        "返回项目目录中所有子目录的名称列表（自动过滤隐藏目录如 .git）。\n"
+                        "支持通过 project_name_pattern 进行项目名称模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标项目。\n"
+                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称；4) 快速查找特定名称模式的项目。\n"
+                        "推荐使用：这是探索本地项目的第一步，先用此工具获取所有项目列表，再使用 list_project_files 查看具体项目的文件结构。\n"
+                        "返回格式：包含项目目录路径、项目总数和项目名称列表的 JSON 对象。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -245,11 +245,11 @@ class EasyCodeReaderServer:
                 Tool(
                     name="list_project_files",
                     description=(
-                        "列出 Java 项目中的源代码文件和配置文件路径。"
-                        "支持两种模式：1) 列出整个项目的所有文件；2) 指定子目录（如 'core' 或 'address/src/main/java'）仅列出该目录下的文件。"
-                        "返回相对路径列表，已自动过滤测试目录（src/test）、编译产物（target/build）和 IDE 配置等无关文件。"
-                        "支持通过 file_name_pattern 进行文件名模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标文件。"
-                        "适合在阅读代码前先了解项目结构，或当项目文件过多时聚焦特定模块。"
+                        "列出 Java 项目中的源代码文件和配置文件路径。\n"
+                        "支持两种模式：1) 列出整个项目的所有文件；2) 指定子目录（如 'core' 或 'address/src/main/java'）仅列出该目录下的文件。\n"
+                        "返回相对路径列表，已自动过滤测试目录（src/test）、编译产物（target/build）和 IDE 配置等无关文件。\n"
+                        "支持通过 file_name_pattern 进行文件名模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标文件。\n"
+                        "适合在阅读代码前先了解项目结构，或当项目文件过多时聚焦特定模块。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -444,7 +444,7 @@ class EasyCodeReaderServer:
                 f"   - 可选参数 version_hint: '{version}' 缩小搜索范围\n"
             )
             
-            # 添加 group_id_hint 的智能建议
+            # 添加 group_prefix 的智能建议
             if suggested_hint:
                 error_msg += (
                     f"   - ⚠️ 重要：如需提供 group_prefix 参数，建议使用较短的前缀以避免过度限制\n"
@@ -1217,6 +1217,10 @@ class EasyCodeReaderServer:
         matches = []
         for group_id, data in group_matches.items():
             versions = data["versions"]
+            
+            # 跳过没有匹配版本的 groupId（可能被 version_hint 过滤掉了所有版本）
+            if not versions:
+                continue
             
             matches.append({
                 "group_id": group_id,
