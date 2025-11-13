@@ -708,6 +708,7 @@ class EasyCodeReaderServer:
             project_name_pattern: 可选，项目名称模糊匹配模式（不区分大小写）
         """
         # 确定使用的项目目录
+        target_dir = None
         if project_dir:
             target_dir = Path(project_dir)
         elif self.project_dir:
