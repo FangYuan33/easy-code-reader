@@ -9,10 +9,10 @@ Easy Code Reader MCP Server
 - 从本地项目目录读取源代码（支持多模块项目）
 - 支持从 sources jar 提取源码或反编译 class 文件
 - 智能选择反编译器（CFR/Fernflower）
-- 在本地 Maven 仓库中根据 artifact 名称和 package 前缀查找 groupId
+- 在本地 Maven 仓库中根据 artifactId 和 package 前缀查找 groupId
 
 提供的工具：
-- search_group_id: 根据 artifact 名称和 package 前缀查找 Maven groupId
+- search_group_id: 根据 artifactId 和 package 前缀查找 Maven groupId
 - read_jar_source: 读取 Maven 依赖中的 Java 类源代码
 - read_project_code: 读取本地项目中的源代码
 - list_all_project: 列举项目目录下的所有项目
@@ -108,7 +108,7 @@ class EasyCodeReaderServer:
                 Tool(
                     name="search_group_id",
                     description=(
-                        "根据 artifact 名称和 package 前缀查找 Maven groupId。\n\n"
+                        "根据 artifactId 和 package 前缀查找 Maven groupId。\n\n"
                         "**使用场景：**\n"
                         "当看到类路径如 `/baozang-trade-export-1.2.2.jar/com.jdd.baozang.trade.export.resource/QualityInspectionAssignmentResource.class` "
                         "但不知道完整 Maven 坐标时，使用此工具查找 groupId。\n\n"
@@ -365,7 +365,7 @@ class EasyCodeReaderServer:
         guide_text += f"- **当前配置：** `{project_dir}`\n"
         guide_text += "- **用途：** 指定本地项目代码的根目录，用于读取本地项目源码。\n\n"
         guide_text += "## 提供的工具\n\n"
-        guide_text += "1. **search_group_id** - 根据 artifact 名称和 package 前缀查找 Maven groupId\n"
+        guide_text += "1. **search_group_id** - 根据 artifactId 和 package 前缀查找 Maven groupId\n"
         guide_text += "2. **read_jar_source** - 读取 Maven 依赖中的 Java 类源代码\n"
         guide_text += "3. **read_project_code** - 读取本地项目中的源代码\n"
         guide_text += "4. **list_all_project** - 列举项目目录下的所有项目\n"
