@@ -9,10 +9,10 @@ Easy Code Reader MCP Server
 - 从本地项目目录读取源代码（支持多模块项目）
 - 支持从 sources jar 提取源码或反编译 class 文件
 - 智能选择反编译器（CFR/Fernflower）
-- 在本地 Maven 仓库中搜索 artifact，查找完整 Maven 坐标
+- 在本地 Maven 仓库中根据 artifactId 和 package 前缀查找 groupId
 
 提供的工具：
-- search_artifact: 在本地 Maven 仓库中搜索 artifact，返回完整的 Maven 坐标
+- search_group_id: 根据 artifactId 和 package 前缀查找 Maven groupId
 - read_jar_source: 读取 Maven 依赖中的 Java 类源代码
 - read_project_code: 读取本地项目中的源代码
 - list_all_project: 列举项目目录下的所有项目
@@ -106,31 +106,45 @@ class EasyCodeReaderServer:
             """列出可用的工具"""
             return [
                 Tool(
-                    name="search_artifact",
+                    name="search_group_id",
                     description=(
-                        "在本地 Maven 仓库中搜索指定的 artifact，返回完整的 Maven 坐标（groupId:artifactId:version）。"
-                        "适用场景：当只知道 artifactId 和部分信息（如从类路径 'xxx.jar!/com/example/...' 或 JAR 文件名推断）时，查找完整的 Maven 坐标。"
-                        "搜索策略：递归遍历 Maven 仓库目录结构（groupId/artifactId/version），匹配 artifactId 目录名。"
-                        "支持过滤条件：可选的 version_pattern（版本号模糊匹配）和 group_id_hint（groupId 部分匹配）。"
-                        "返回格式：包含所有匹配的坐标列表，每个坐标包含 group_id、artifact_id、version、coordinate 和 jar_files（JAR 文件名数组）。"
-                        "SNAPSHOT 优化：对于 SNAPSHOT 版本，优先返回主 SNAPSHOT JAR，否则返回最新的带时间戳 JAR，减少上下文消耗。"
-                        "典型工作流：search_artifact 查找坐标 → 从结果中选择正确的坐标 → 使用 read_jar_source 读取源码。"
-                        "性能提示：如果仓库较大，建议提供 group_id_hint 参数缩小搜索范围。"
+                        "辅助 read_jar_source 工具的调用，在未知 groupId 的情况下，根据 artifactId 和 package 前缀查找 Maven groupId。\n\n"
+                        "**使用场景：**\n"
+                        "当看到类路径如 `/spring-context-5.0.0.RELEASE.jar/org.springframework.context/ApplicationContext.class` "
+                        "但不知道完整 Maven 坐标时，使用此工具查找 groupId。\n\n"
+                        "**工作原理：**\n"
+                        "1. 在 Maven 仓库中搜索匹配的 artifact ID\n"
+                        "2. 可选使用 group_prefix 缩小搜索范围（强烈推荐，可提速 10 倍以上）\n"
+                        "3. 可选使用 version_hint 进一步过滤版本\n"
+                        "4. 返回按 groupId 排序的匹配列表\n\n"
+                        "**参数说明：**\n"
+                        "- artifact_id: JAR 名称（不含版本），如 \"spring-context\"\n"
+                        "- group_prefix: （可选）groupId 前缀（1-2 级），如 \"org.springframework\"\n"
+                        "  从类路径提取：org.springframework.context → 使用 \"org.springframework\"\n"
+                        "- version_hint: （可选）版本提示，如 \"5.0.0.RELEASE\"、\"SNAPSHOT\"\n"
+                        "  ⚠️ 警告：如果版本信息不准确可能导致查不到结果\n\n"
+                        "**返回结果：**\n"
+                        "包含 groupId、匹配版本列表的详细信息。\n\n"
+                        "**典型工作流：**\n"
+                        "1. 从错误信息中提取 artifact_id 和 package 前缀\n"
+                        "2. 调用 search_group_id 获取候选 groupId\n"
+                        "3. 选择合适的 groupId\n"
+                        "4. 使用 read_jar_source 读取源码"
                     ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "artifact_id": {
                                 "type": "string",
-                                "description": "Maven artifact ID（例如：spring-core）"
+                                "description": "Maven artifact ID，不含版本号（例如：spring-context）"
                             },
-                            "version_pattern": {
+                            "group_prefix": {
                                 "type": "string",
-                                "description": "可选：版本号模糊匹配模式（例如：1.0.0、20251110、SNAPSHOT），会匹配包含此字符串的版本"
+                                "description": "可选：groupId 前缀（1-2 级），如 \"org.springframework\"。从类路径中提取：org.springframework.context → 使用 \"org.springframework\"。用于缩小搜索范围，提升性能"
                             },
-                            "group_id_hint": {
+                            "version_hint": {
                                 "type": "string",
-                                "description": "可选：groupId 提示，用于缩小搜索范围（例如：com.alibaba、org.springframework），会匹配包含此字符串的 groupId"
+                                "description": "可选：版本提示，如 \"1.2.2\"、\"SNAPSHOT\"、\"20251110\"。⚠️ 警告：如果版本信息不准确可能导致查不到结果"
                             }
                         },
                         "required": ["artifact_id"]
@@ -139,11 +153,11 @@ class EasyCodeReaderServer:
                 Tool(
                     name="read_jar_source",
                     description=(
-                        "从 Maven 依赖中读取 Java 类的源代码。"
-                        "工作流程：1) 首先尝试从 -sources.jar 中提取原始源代码；2) 如果 sources jar 不存在，自动使用反编译器（CFR 或 Fernflower）反编译 class 文件。"
-                        "支持 SNAPSHOT 版本的智能处理，会自动查找带时间戳的最新版本。"
-                        "适用场景：阅读第三方库源码（如 Spring、MyBatis）、理解依赖实现细节、排查依赖相关问题。"
-                        "注意：需要提供完整的 Maven 坐标（group_id、artifact_id、version）和完全限定的类名（如 org.springframework.core.SpringVersion）。"
+                        "从 Maven 依赖中读取 Java 类的源代码。\n"
+                        "工作流程：1) 首先尝试从 -sources.jar 中提取原始源代码；2) 如果 sources jar 不存在，自动使用反编译器（CFR 或 Fernflower）反编译 class 文件。\n"
+                        "支持 SNAPSHOT 版本的智能处理，会自动查找带时间戳的最新版本。\n"
+                        "适用场景：阅读第三方库源码（如 Spring、MyBatis）、理解依赖实现细节、排查依赖相关问题。\n"
+                        "注意：需要提供完整的 Maven 坐标（group_id、artifact_id、version）和完全限定的类名（如 org.springframework.core.SpringVersion）。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -176,13 +190,13 @@ class EasyCodeReaderServer:
                 Tool(
                     name="read_project_code",
                     description=(
-                        "从本地项目目录中读取指定文件的源代码或配置文件内容。"
-                        "支持读取 Java 项目中的所有文件类型：Java 源代码、XML 配置、properties、YAML、JSON、Gradle 脚本、Markdown 文档等。"
-                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService，自动查找对应的 .java 文件）；2) 相对路径（如 src/main/resources/application.yml、pom.xml、core/src/main/java/com/example/MyClass.java）。"
-                        "自动支持多模块 Maven/Gradle 项目，会递归搜索子模块中的文件。"
-                        "搜索策略：优先在项目根目录查找，如果未找到则自动在所有子模块（包含 pom.xml 或 build.gradle 的目录）中搜索。"
-                        "适用场景：阅读本地项目源码、查看配置文件、分析项目结构、理解业务逻辑实现。"
-                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files（建议带 file_name_pattern 参数进行模糊匹配）查看文件列表 → 使用本工具读取具体文件。"
+                        "从本地项目目录中读取指定文件的源代码或配置文件内容。\n"
+                        "支持读取 Java 项目中的所有文件类型：Java 源代码、XML 配置、properties、YAML、JSON、Gradle 脚本、Markdown 文档等。\n"
+                        "支持两种输入格式：1) 完全限定的类名（如 com.example.service.UserService，自动查找对应的 .java 文件）；2) 相对路径（如 src/main/resources/application.yml、pom.xml、core/src/main/java/com/example/MyClass.java）。\n"
+                        "自动支持多模块 Maven/Gradle 项目，会递归搜索子模块中的文件。\n"
+                        "搜索策略：优先在项目根目录查找，如果未找到则自动在所有子模块（包含 pom.xml 或 build.gradle 的目录）中搜索。\n"
+                        "适用场景：阅读本地项目源码、查看配置文件、分析项目结构、理解业务逻辑实现。\n"
+                        "推荐流程：先使用 list_all_project 确认项目存在 → 使用 list_project_files（建议带 file_name_pattern 参数进行模糊匹配）查看文件列表 → 使用本工具读取具体文件。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -206,12 +220,12 @@ class EasyCodeReaderServer:
                 Tool(
                     name="list_all_project",
                     description=(
-                        "列举项目目录下所有的项目文件夹名称。"
-                        "返回项目目录中所有子目录的名称列表（自动过滤隐藏目录如 .git）。"
-                        "支持通过 project_name_pattern 进行项目名称模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标项目。"
-                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称；4) 快速查找特定名称模式的项目。"
-                        "推荐使用：这是探索本地项目的第一步，先用此工具获取所有项目列表，再使用 list_project_files 查看具体项目的文件结构。"
-                        "返回格式：包含项目目录路径、项目总数和项目名称列表的 JSON 对象。"
+                        "列举项目目录下所有的项目文件夹名称。\n"
+                        "返回项目目录中所有子目录的名称列表（自动过滤隐藏目录如 .git）。\n"
+                        "支持通过 project_name_pattern 进行项目名称模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标项目。\n"
+                        "适用场景：1) 探索未知的项目目录，了解有哪些项目可用；2) 验证项目名称是否正确，避免拼写错误；3) 当用户提供不完整的项目名时，帮助推断完整名称；4) 快速查找特定名称模式的项目。\n"
+                        "推荐使用：这是探索本地项目的第一步，先用此工具获取所有项目列表，再使用 list_project_files 查看具体项目的文件结构。\n"
+                        "返回格式：包含项目目录路径、项目总数和项目名称列表的 JSON 对象。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -231,11 +245,11 @@ class EasyCodeReaderServer:
                 Tool(
                     name="list_project_files",
                     description=(
-                        "列出 Java 项目中的源代码文件和配置文件路径。"
-                        "支持两种模式：1) 列出整个项目的所有文件；2) 指定子目录（如 'core' 或 'address/src/main/java'）仅列出该目录下的文件。"
-                        "返回相对路径列表，已自动过滤测试目录（src/test）、编译产物（target/build）和 IDE 配置等无关文件。"
-                        "支持通过 file_name_pattern 进行文件名模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标文件。"
-                        "适合在阅读代码前先了解项目结构，或当项目文件过多时聚焦特定模块。"
+                        "列出 Java 项目中的源代码文件和配置文件路径。\n"
+                        "支持两种模式：1) 列出整个项目的所有文件；2) 指定子目录（如 'core' 或 'address/src/main/java'）仅列出该目录下的文件。\n"
+                        "返回相对路径列表，已自动过滤测试目录（src/test）、编译产物（target/build）和 IDE 配置等无关文件。\n"
+                        "支持通过 file_name_pattern 进行文件名模糊匹配，但使用需谨慎：如果指定的匹配模式过于严格可能遗漏目标文件。\n"
+                        "适合在阅读代码前先了解项目结构，或当项目文件过多时聚焦特定模块。\n"
                     ),
                     inputSchema={
                         "type": "object",
@@ -274,8 +288,8 @@ class EasyCodeReaderServer:
                     return await self._list_all_project(**arguments)
                 elif name == "list_project_files":
                     return await self._list_project_files(**arguments)
-                elif name == "search_artifact":
-                    return await self._search_artifact(**arguments)
+                elif name == "search_group_id":
+                    return await self._search_group_id(**arguments)
                 else:
                     logger.error(f"未知工具: {name}")
                     raise ValueError(f"Unknown tool: {name}")
@@ -351,7 +365,7 @@ class EasyCodeReaderServer:
         guide_text += f"- **当前配置：** `{project_dir}`\n"
         guide_text += "- **用途：** 指定本地项目代码的根目录，用于读取本地项目源码。\n\n"
         guide_text += "## 提供的工具\n\n"
-        guide_text += "1. **search_artifact** - 在本地 Maven 仓库中搜索 artifact，返回完整的 Maven 坐标\n"
+        guide_text += "1. **search_group_id** - 根据 artifactId 和 package 前缀查找 Maven groupId\n"
         guide_text += "2. **read_jar_source** - 读取 Maven 依赖中的 Java 类源代码\n"
         guide_text += "3. **read_project_code** - 读取本地项目中的源代码\n"
         guide_text += "4. **list_all_project** - 列举项目目录下的所有项目\n"
@@ -425,22 +439,22 @@ class EasyCodeReaderServer:
                 f"1. Maven 坐标信息（特别是 groupId）可能不正确\n"
                 f"2. 该依赖尚未下载到本地 Maven 仓库\n\n"
                 f"建议排查步骤（按优先级）：\n"
-                f"1. 🔍 **强烈推荐：使用 search_artifact 工具查找正确的 Maven 坐标**\n"
-                f"   - 必填参数 artifact_id: '{artifact_id}'\n"
-                f"   - 可选参数 version_pattern: '{version}' 缩小搜索范围\n"
+                f"1. 🔍 **强烈推荐：使用 search_group_id 工具查找正确的 Maven 坐标**\n"
+                f"   - 必填参数 artifact_name: '{artifact_id}'\n"
+                f"   - 可选参数 version_hint: '{version}' 缩小搜索范围\n"
             )
             
-            # 添加 group_id_hint 的智能建议
+            # 添加 group_prefix 的智能建议
             if suggested_hint:
                 error_msg += (
-                    f"   - ⚠️ 重要：如需提供 group_id_hint 参数，建议使用较短的前缀以避免过度限制\n"
+                    f"   - ⚠️ 重要：如需提供 group_prefix 参数，建议使用较短的前缀以避免过度限制\n"
                     f"     • 推荐使用: '{suggested_hint}' (groupId 的前2段)\n"
                     f"     • 或者更宽泛: '{group_parts[0]}' (groupId 的第1段)\n"
                     f"     • 避免使用完整的: '{group_id}' (可能因拼写错误而搜不到)\n"
                 )
             else:
                 error_msg += (
-                    f"   - 💡 提示：group_id_hint 参数是可选的，不确定时可以不传\n"
+                    f"   - 💡 提示：group_prefix 参数是可选的，不确定时可以不传\n"
                 )
             
             error_msg += (
@@ -1036,36 +1050,31 @@ class EasyCodeReaderServer:
         # 没有找到主 SNAPSHOT JAR，不处理带时间戳的 JAR（这些版本没有意义）
         return []
 
-    async def _search_artifact(self, artifact_id: str,
-                               version_pattern: Optional[str] = None,
-                               group_id_hint: Optional[str] = None) -> List[TextContent]:
+    async def _search_group_id(self, artifact_id: str,
+                               group_prefix: Optional[str] = None,
+                               version_hint: Optional[str] = None) -> List[TextContent]:
         """
-        在本地 Maven 仓库中搜索 artifact
+        根据 artifact ID 和 package 前缀查找 Maven groupId
         
         工作原理：
-        1. 遍历 Maven 仓库的目录结构（groupId/artifactId/version）
-        2. 查找匹配 artifact_id 的目录
-        3. 应用可选的过滤条件（version_pattern, group_id_hint）
-        4. 返回所有匹配的 Maven 坐标及其 JAR 文件信息
-        
-        性能优化：
-        - 如果提供 group_id_hint，会提前过滤不匹配的 groupId 目录，显著提升搜索速度
-        - 使用迭代而非递归遍历，避免深度嵌套带来的性能开销
+        1. 在 Maven 仓库中搜索匹配的 artifact ID
+        2. 可选使用 group_prefix 缩小搜索范围（提速 10 倍以上）
+        3. 可选使用 version_hint 进一步过滤版本
+        4. 返回按 groupId 排序的匹配列表
 
         参数:
-            artifact_id: Maven artifact ID（必填）
-            version_pattern: 版本号模糊匹配模式（可选，不区分大小写）
-            group_id_hint: groupId 提示，用于缩小搜索范围（可选，不区分大小写）
+            artifact_id: Maven artifact ID（不含版本号）
+            group_prefix: groupId 前缀（1-2 级），用于缩小搜索范围
+            version_hint: 版本提示，用于进一步过滤版本
 
         返回:
             包含所有匹配坐标的 JSON 结果，包含：
             - artifact_id: 搜索的 artifact ID
-            - version_pattern: 使用的版本过滤模式
-            - group_id_hint: 使用的 groupId 过滤提示
+            - group_prefix: 使用的 groupId 前缀
+            - version_hint: 使用的版本提示
             - total_matches: 匹配数量
-            - searched_dirs: 搜索的目录数量（用于性能分析）
-            - elapsed_seconds: 搜索耗时
-            - matches: 匹配结果列表
+            - search_stats: 搜索统计信息
+            - matches: 匹配结果列表（包含 matched_versions）
             - hint: AI 友好的操作提示
         """
         # 输入验证
@@ -1074,13 +1083,17 @@ class EasyCodeReaderServer:
 
         # 规范化输入（去除首尾空格）
         artifact_id = artifact_id.strip()
-        if version_pattern:
-            version_pattern = version_pattern.strip()
-        if group_id_hint:
-            group_id_hint = group_id_hint.strip()
+        if group_prefix:
+            group_prefix = group_prefix.strip()
+            # 验证 group_prefix 最多2级
+            prefix_parts = group_prefix.split('.')
+            if len(prefix_parts) > 2:
+                logger.warning(f"group_prefix '{group_prefix}' 超过2级，建议使用前2级以获得更好的搜索范围")
+        if version_hint:
+            version_hint = version_hint.strip()
 
         logger.info(
-            f"开始搜索 artifact: {artifact_id}, version_pattern: {version_pattern}, group_id_hint: {group_id_hint}")
+            f"开始搜索 groupId: artifact_id={artifact_id}, group_prefix={group_prefix}, version_hint={version_hint}")
 
         # 检查 Maven 仓库是否存在
         if not self.maven_home.exists():
@@ -1089,8 +1102,10 @@ class EasyCodeReaderServer:
                 text=f"错误: Maven 仓库不存在: {self.maven_home}\n请检查 Maven 仓库配置"
             )]
 
-        results = []
-        searched_dirs = 0
+        # 用于收集匹配结果
+        # key: group_id, value: {versions: []}
+        group_matches = {}
+        scanned_groups = 0
         start_time = time.perf_counter()
 
         def search_maven_repo(base_path: Path):
@@ -1098,17 +1113,8 @@ class EasyCodeReaderServer:
             遍历搜索 Maven 仓库
             
             Maven 仓库结构: {maven_repo}/{groupId}/{artifactId}/{version}/
-            例如: ~/.m2/repository/org/springframework/spring-core/5.3.21/
-            
-            搜索策略：
-            1. 遍历第一层目录（通常是 groupId 的第一部分，如 'org', 'com'）
-            2. 在每个分组下查找 artifactId 目录
-            3. 提取完整的 groupId 并应用 group_id_hint 过滤（如果有）
-            4. 在 artifactId 下遍历所有版本目录
-            5. 应用版本过滤（如果有）
-            6. 验证是否有有效的 JAR 文件
             """
-            nonlocal searched_dirs
+            nonlocal scanned_groups
 
             try:
                 # 遍历仓库根目录的第一层（通常是 groupId 的第一部分）
@@ -1116,45 +1122,33 @@ class EasyCodeReaderServer:
                     if not first_level.is_dir() or first_level.name.startswith('.'):
                         continue
 
-                    # 性能优化：如果提供了 group_id_hint，提前检查路径是否可能匹配
-                    # 这样可以跳过整个不相关的目录分支，避免深度遍历
-                    # 例如: group_id_hint="springframework" 应该只进入可能包含它的目录（如 "org/"）
-                    if group_id_hint:
+                    # 性能优化：如果提供了 group_prefix，提前过滤
+                    if group_prefix:
                         first_level_name_lower = first_level.name.lower()
-                        group_id_hint_lower = group_id_hint.lower()
+                        group_prefix_lower = group_prefix.lower()
                         
-                        # 策略：检查 hint 是否可能在这个目录分支下
-                        # 如果 hint 包含点号（如 "org.springframework"），检查第一部分
-                        # 如果 hint 不包含点号（如 "springframework"），需要更宽松的匹配
-                        
-                        # 分割 hint 获取各部分
-                        hint_parts = group_id_hint_lower.split('.')
+                        # 分割 prefix 获取各部分
+                        prefix_parts = group_prefix_lower.split('.')
                         
                         # 判断是否应该探索这个目录
-                        # 如果第一个部分匹配目录名，或者目录名可能是 hint 的一部分，就继续
                         should_explore = False
                         
-                        # 情况1：hint 的第一部分就是顶级目录（如 hint="org.spring"，目录="org"）
-                        if hint_parts[0] == first_level_name_lower:
+                        # 情况1：prefix 的第一部分就是顶级目录
+                        if prefix_parts[0] == first_level_name_lower:
                             should_explore = True
-                        # 情况2：hint 可能在这个目录下的子包中（如 hint="springframework"，目录="org"）
-                        # 这种情况我们无法提前判断，需要保守处理
-                        # 只有当 hint 明确以其他顶级包开头时才跳过
-                        # 例如：hint="com.example"，当前目录="org"，则跳过
-                        elif '.' in group_id_hint_lower:
-                            # hint 包含完整路径，检查第一部分是否匹配
-                            # 如果不匹配，则跳过
+                        # 情况2：prefix 包含完整路径，检查第一部分是否匹配
+                        elif '.' in group_prefix_lower:
                             should_explore = False
                         else:
-                            # hint 不包含点号，可能在任何顶级目录下，保守地探索
+                            # prefix 不包含点号，可能在任何顶级目录下
                             should_explore = True
                         
                         if not should_explore:
-                            continue  # 跳过整个目录分支
+                            continue
 
-                    # 递归查找 artifactId 目录（优化：只查找名为 artifact_id 的目录）
+                    # 递归查找 artifact_id 目录
                     for artifact_dir in first_level.rglob(artifact_id):
-                        searched_dirs += 1
+                        scanned_groups += 1
 
                         if not artifact_dir.is_dir():
                             continue
@@ -1164,9 +1158,15 @@ class EasyCodeReaderServer:
                             rel_path = artifact_dir.parent.relative_to(base_path)
                             group_id = str(rel_path).replace(os.sep, '.')
 
-                            # 精确的 group_id_hint 过滤（不区分大小写）
-                            if group_id_hint and group_id_hint.lower() not in group_id.lower():
+                            # 精确的 group_prefix 过滤（不区分大小写）
+                            if group_prefix and group_prefix.lower() not in group_id.lower():
                                 continue
+
+                            # 初始化该 groupId 的记录
+                            if group_id not in group_matches:
+                                group_matches[group_id] = {
+                                    "versions": []
+                                }
 
                             # 遍历所有版本目录
                             for version_dir in artifact_dir.iterdir():
@@ -1176,7 +1176,7 @@ class EasyCodeReaderServer:
                                 version = version_dir.name
 
                                 # 版本号过滤（不区分大小写）
-                                if version_pattern and version_pattern.lower() not in version.lower():
+                                if version_hint and version_hint.lower() not in version.lower():
                                     continue
 
                                 # 验证该版本是否有 JAR 文件（排除 sources 和 javadoc）
@@ -1187,26 +1187,16 @@ class EasyCodeReaderServer:
                                 ]
 
                                 if jar_files:
-                                    # 对 SNAPSHOT 版本应用过滤：只返回主 SNAPSHOT JAR（不处理带时间戳的 JAR）
+                                    # 对 SNAPSHOT 版本应用过滤
                                     filtered_jars = self._filter_snapshot_jars(jar_files, artifact_id, version)
                                     
-                                    # 如果过滤后没有有效的 JAR 文件，跳过此版本
                                     if not filtered_jars:
                                         continue
                                     
-                                    # 简化格式：jar_files 只返回文件名字符串数组，不包含 size_mb
-                                    jar_names = [jar_file.name for jar_file in filtered_jars]
+                                    # 记录版本
+                                    group_matches[group_id]["versions"].append(version)
 
-                                    results.append({
-                                        "group_id": group_id,
-                                        "artifact_id": artifact_id,
-                                        "version": version,
-                                        "coordinate": f"{group_id}:{artifact_id}:{version}",
-                                        "jar_files": jar_names,
-                                        "path": str(version_dir)
-                                    })
-
-                                    logger.info(f"找到匹配: {group_id}:{artifact_id}:{version}")
+                                    logger.debug(f"找到版本: {group_id}:{artifact_id}:{version}")
 
                         except Exception as e:
                             logger.warning(f"处理路径 {artifact_dir} 时出错: {e}")
@@ -1223,82 +1213,81 @@ class EasyCodeReaderServer:
         # 计算搜索耗时
         elapsed_time = round(time.perf_counter() - start_time, 2)
 
+        # 构建结果
+        matches = []
+        for group_id, data in group_matches.items():
+            versions = data["versions"]
+            
+            matches.append({
+                "group_id": group_id,
+                "matched_versions": sorted(versions, reverse=True)[:10],  # 最多返回10个版本
+                "total_versions": len(versions)
+            })
+
+        # 按 group_id 字典序排序
+        matches.sort(key=lambda x: x["group_id"])
+
         # 构建返回结果
         result = {
             "artifact_id": artifact_id,
-            "version_pattern": version_pattern if version_pattern else "none",
-            "group_id_hint": group_id_hint if group_id_hint else "none",
-            "total_matches": len(results),
-            "searched_dirs": searched_dirs,
-            "elapsed_seconds": elapsed_time,
-            "matches": results
+            "group_prefix": group_prefix if group_prefix else "none",
+            "version_hint": version_hint if version_hint else "none",
+            "total_matches": len(matches),
+            "search_stats": {
+                "scanned_groups": scanned_groups,
+                "elapsed_seconds": elapsed_time
+            },
+            "matches": matches
         }
 
-        # 添加智能提示（针对不同场景提供不同的 AI 友好提示）
-        if len(results) == 0:
+        # 添加智能提示（针对不同场景）
+        if len(matches) == 0:
             # 场景1: 未找到任何匹配
             result["hint"] = (
-                f"❌ 未找到 artifact '{artifact_id}' 的任何匹配。\n\n"
+                f"❌ 未找到 artifact '{artifact_id}' 的任何匹配\n\n"
                 "可能原因：\n"
-                "1. artifact_id 拼写不正确（注意大小写和连字符 '-'）\n"
-                "2. 该依赖尚未下载到本地 Maven 仓库\n"
-                + (f"3. group_id_hint '{group_id_hint}' 过滤条件过于严格\n" if group_id_hint else "")
-                + (f"4. version_pattern '{version_pattern}' 过滤条件过于严格\n" if version_pattern else "")
-                + "\n建议操作（按优先级）：\n"
-                "1. 🔍 重新搜索，不传入过滤参数，查看是否有其他版本或 groupId\n"
-                "2. 📄 如果有项目的 pom.xml，使用 read_project_code 工具查看依赖配置\n"
-            )
-        elif len(results) == 1:
-            # 场景2: 找到唯一匹配（最理想的情况）
-            match = results[0]
-            jar_files = match['jar_files']
-            jar_info = f"📊 JAR 文件: {', '.join(jar_files)}\n\n" if jar_files else ""
-            result["hint"] = (
-                f"✅ 找到唯一匹配！可以直接使用。\n\n"
-                f"📦 Maven 坐标: {match['coordinate']}\n"
-                f"📁 路径: {match['path']}\n"
-                f"{jar_info}"
-                "📌 下一步操作：\n"
-                f"使用 read_jar_source 工具读取源代码，参数配置：\n"
-                f"  • group_id: {match['group_id']}\n"
-                f"  • artifact_id: {match['artifact_id']}\n"
-                f"  • version: {match['version']}\n"
-                f"  • class_name: <完全限定的类名，如 com.example.MyClass>"
-            )
-        elif len(results) <= 5:
-            # 场景3: 找到少量匹配（2-5个），列出所有坐标供选择
-            coords_list = "\n".join([f"  {i + 1}. {r['coordinate']}" for i, r in enumerate(results)])
-            result["hint"] = (
-                f"🎯 找到 {len(results)} 个匹配的 artifact，请从中选择：\n\n"
-                f"{coords_list}\n\n"
-                "💡 选择建议：\n"
-                "• 数字版本（如 1.0.0）按语义版本排序，最新版本在前\n"
-                "• 字符串版本（如 latest, dev）按字母顺序排序，排在数字版本之后\n"
-                "• 如果有 SNAPSHOT 版本，查看时间戳选择最新的\n"
-                "• 确认 groupId 是否符合预期\n\n"
-                "📌 选定后使用 read_jar_source 工具读取源代码"
+                "1. artifact_id 拼写错误\n"
+                "2. 依赖未下载到本地仓库\n"
+                + (f"3. group_prefix '{group_prefix}' 过滤过严\n" if group_prefix else "")
+                + (f"4. version_hint '{version_hint}' 过滤过严（⚠️ 注意：AI 可能产生幻觉导致版本号错误）\n" if version_hint else "")
+                + "\n建议操作：\n"
+                "1. group_prefix 可以修改成 1 级或者不传，version_hint 也可以不传，重新搜索\n"
+                "2. 检查 artifact_id 拼写"
             )
         else:
-            # 场景4: 找到大量匹配（>5个），建议使用过滤
-            result["hint"] = (
-                f"🔍 找到 {len(results)} 个匹配的 artifact，结果较多。\n\n"
-                "建议通过以下方式缩小范围：\n"
-                "1. 🏷️  使用 version_pattern 参数过滤版本\n"
-                "   • 示例：'1.0.0'（匹配特定版本）\n"
-                "   • 示例：'20251110'（匹配 SNAPSHOT 时间戳）\n"
-                "   • 示例：'RELEASE'（只看正式版本）\n"
-                "2. 🏢 使用 group_id_hint 参数过滤 groupId\n"
-                "   • 示例：'com.alibaba'（阿里巴巴的包）\n"
-                "   • 示例：'org.springframework'（Spring 框架的包）\n\n"
-                "💡 提示：\n"
-                "• 结果已按 groupId 和版本排序\n"
-                "• 数字版本按语义版本排序（1.10.0 > 1.9.0），最新版本在前\n"
-                "• 字符串版本（如 latest, dev）排在数字版本之后，按字母顺序排列\n"
-                "• 同一 groupId 下的版本按上述规则降序排列\n"
-                "• 找到目标坐标后，使用 read_jar_source 工具读取源代码"
-            )
+            # 找到匹配
+            if len(matches) == 1:
+                # 场景2: 找到唯一匹配
+                match = matches[0]
+                versions_str = ", ".join(match["matched_versions"][:3])
+                if match["total_versions"] > 3:
+                    versions_str += f" (共 {match['total_versions']} 个版本)"
+                
+                result["hint"] = (
+                    f"✅ 找到唯一匹配！\n\n"
+                    f"📦 groupId: {match['group_id']}\n"
+                    f"📊 匹配版本: {versions_str}\n\n"
+                    "下一步：使用 read_jar_source 读取源码\n"
+                    f"  • group_id: {match['group_id']}\n"
+                    f"  • artifact_id: {artifact_id}\n"
+                    f"  • version: {match['matched_versions'][0]}\n"
+                    "  • class_name: <完全限定的类名>"
+                )
+            else:
+                # 场景3: 找到多个候选
+                suggestions = []
+                for i, m in enumerate(matches[:5], 1):
+                    suggestions.append(f"{i}. {m['group_id']}")
+                
+                result["hint"] = (
+                    f"🎯 找到 {len(matches)} 个候选 groupId\n\n"
+                    "建议选择：\n" + "\n".join(suggestions) + "\n\n"
+                    "💡 提示：\n"
+                    "• 依次尝试每个 groupId\n"
+                    "• 可查看 matched_versions 确认版本可用性"
+                )
 
-        logger.info(f"搜索完成: 找到 {len(results)} 个匹配，耗时 {elapsed_time}s，搜索了 {searched_dirs} 个目录")
+        logger.info(f"搜索完成: 找到 {len(matches)} 个匹配，耗时 {elapsed_time}s")
 
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
 
