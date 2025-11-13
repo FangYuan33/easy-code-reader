@@ -444,7 +444,7 @@ class EasyCodeReaderServer:
                 f"   - 可选参数 version_hint: '{version}' 缩小搜索范围\n"
             )
             
-            # 添加 group_id_hint 的智能建议
+            # 添加 group_prefix 的智能建议
             if suggested_hint:
                 error_msg += (
                     f"   - ⚠️ 重要：如需提供 group_prefix 参数，建议使用较短的前缀以避免过度限制\n"
@@ -708,6 +708,7 @@ class EasyCodeReaderServer:
             project_name_pattern: 可选，项目名称模糊匹配模式（不区分大小写）
         """
         # 确定使用的项目目录
+        target_dir = None
         if project_dir:
             target_dir = Path(project_dir)
         elif self.project_dir:
