@@ -113,31 +113,30 @@ class EasyCodeReaderServer:
                         "当看到类路径如 `/baozang-trade-export-1.2.2.jar/com.jdd.baozang.trade.export.resource/QualityInspectionAssignmentResource.class` "
                         "但不知道完整 Maven 坐标时，使用此工具查找 groupId。\n\n"
                         "**工作原理：**\n"
-                        "1. 在 Maven 仓库中搜索匹配的 artifact name\n"
+                        "1. 在 Maven 仓库中搜索匹配的 artifact ID\n"
                         "2. 可选使用 group_prefix 缩小搜索范围（强烈推荐，可提速 10 倍以上）\n"
                         "3. 可选使用 version_hint 进一步过滤版本\n"
-                        "4. 解压 JAR 验证 package 结构，计算置信度\n"
-                        "5. 返回按置信度排序的 groupId 列表\n\n"
+                        "4. 返回按 groupId 排序的匹配列表\n\n"
                         "**参数说明：**\n"
-                        "- artifact_name: JAR 名称（不含版本），如 \"baozang-trade-export\"\n"
+                        "- artifact_id: JAR 名称（不含版本），如 \"baozang-trade-export\"\n"
                         "- group_prefix: （可选）groupId 前缀（1-2 级），如 \"com.jdd\"\n"
                         "  从类路径提取：com.jdd.baozang.trade.export → 使用 \"com.jdd\"\n"
                         "- version_hint: （可选）版本提示，如 \"1.2.2\"、\"SNAPSHOT\"\n"
                         "  ⚠️ 警告：如果版本信息不准确可能导致查不到结果\n\n"
                         "**返回结果：**\n"
-                        "包含 groupId、置信度、匹配版本列表和示例 package 路径的详细信息。\n\n"
+                        "包含 groupId、匹配版本列表的详细信息。\n\n"
                         "**典型工作流：**\n"
-                        "1. 从错误信息中提取 artifact_name 和 package 前缀\n"
+                        "1. 从错误信息中提取 artifact_id 和 package 前缀\n"
                         "2. 调用 search_group_id 获取候选 groupId\n"
-                        "3. 选择 confidence 为 \"high\" 的 groupId\n"
+                        "3. 选择合适的 groupId\n"
                         "4. 使用 read_jar_source 读取源码"
                     ),
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "artifact_name": {
+                            "artifact_id": {
                                 "type": "string",
-                                "description": "Maven artifact 名称，不含版本号（例如：baozang-trade-export）"
+                                "description": "Maven artifact ID，不含版本号（例如：baozang-trade-export）"
                             },
                             "group_prefix": {
                                 "type": "string",
@@ -148,7 +147,7 @@ class EasyCodeReaderServer:
                                 "description": "可选：版本提示，如 \"1.2.2\"、\"SNAPSHOT\"、\"20251110\"。⚠️ 警告：如果版本信息不准确可能导致查不到结果"
                             }
                         },
-                        "required": ["artifact_name"]
+                        "required": ["artifact_id"]
                     }
                 ),
                 Tool(
@@ -1020,37 +1019,6 @@ class EasyCodeReaderServer:
             logger.error(f"从 sources jar 提取失败 {sources_jar}: {e}")
         return None
 
-    def _extract_sample_package(self, jar_path: Path) -> Optional[str]:
-        """
-        从 JAR 文件中提取示例 package 路径
-        
-        策略：
-        1. 只解压第一个找到的 .class 文件
-        2. 从 class 文件路径提取 package
-        3. 用于置信度计算
-        
-        参数:
-            jar_path: JAR 文件路径
-            
-        返回:
-            package 路径字符串（如 "com.jdd.baozang.trade.export"），如果没有找到则返回 None
-        """
-        try:
-            with zipfile.ZipFile(jar_path, 'r') as jar:
-                # 查找第一个 .class 文件
-                for file_name in jar.namelist():
-                    if file_name.endswith('.class') and not file_name.startswith('META-INF'):
-                        # 从文件路径提取 package
-                        # 例如：com/jdd/baozang/trade/export/Test.class → com.jdd.baozang.trade.export
-                        if '/' in file_name:
-                            package_path = file_name.rsplit('/', 1)[0].replace('/', '.')
-                            return package_path
-                        break
-        except Exception as e:
-            logger.warning(f"提取 package 失败 {jar_path}: {e}")
-        
-        return None
-
     def _filter_snapshot_jars(self, jar_files: List[Path], artifact_id: str, version: str) -> List[Path]:
         """
         过滤 SNAPSHOT 版本的 JAR 文件，优化返回结果
@@ -1082,45 +1050,39 @@ class EasyCodeReaderServer:
         # 没有找到主 SNAPSHOT JAR，不处理带时间戳的 JAR（这些版本没有意义）
         return []
 
-    async def _search_group_id(self, artifact_name: str,
+    async def _search_group_id(self, artifact_id: str,
                                group_prefix: Optional[str] = None,
                                version_hint: Optional[str] = None) -> List[TextContent]:
         """
-        根据 artifact 名称和 package 前缀查找 Maven groupId
+        根据 artifact ID 和 package 前缀查找 Maven groupId
         
         工作原理：
-        1. 在 Maven 仓库中搜索匹配的 artifact name
+        1. 在 Maven 仓库中搜索匹配的 artifact ID
         2. 可选使用 group_prefix 缩小搜索范围（提速 10 倍以上）
         3. 可选使用 version_hint 进一步过滤版本
-        4. 解压 JAR 验证 package 结构，计算置信度
-        5. 返回按置信度排序的 groupId 列表
-        
-        置信度计算规则：
-        - high: package 路径以 groupId 开头
-        - medium: package 路径以 group_prefix 开头（如果提供）
-        - low: 找到 artifact 但无法验证 package 对齐
+        4. 返回按 groupId 排序的匹配列表
 
         参数:
-            artifact_name: Maven artifact 名称（不含版本号）
+            artifact_id: Maven artifact ID（不含版本号）
             group_prefix: groupId 前缀（1-2 级），用于缩小搜索范围
             version_hint: 版本提示，用于进一步过滤版本
 
         返回:
             包含所有匹配坐标的 JSON 结果，包含：
-            - artifact_name: 搜索的 artifact 名称
+            - artifact_id: 搜索的 artifact ID
             - group_prefix: 使用的 groupId 前缀
             - version_hint: 使用的版本提示
             - total_matches: 匹配数量
             - search_stats: 搜索统计信息
-            - matches: 匹配结果列表（包含 confidence、matched_versions、sample_package）
+            - matches: 匹配结果列表（包含 matched_versions）
             - hint: AI 友好的操作提示
         """
         # 输入验证
-        if not artifact_name or not artifact_name.strip():
-            return [TextContent(type="text", text="错误: artifact_name 不能为空")]
+        if not artifact_id or not artifact_id.strip():
+            return [TextContent(type="text", text="错误: artifact_id 不能为空")]
 
         # 规范化输入（去除首尾空格）
-        artifact_name = artifact_name.strip()
+        artifact_id = artifact_id.strip()
         if group_prefix:
             group_prefix = group_prefix.strip()
             # 验证 group_prefix 最多2级
@@ -1131,7 +1093,7 @@ class EasyCodeReaderServer:
             version_hint = version_hint.strip()
 
         logger.info(
-            f"开始搜索 groupId: artifact_name={artifact_name}, group_prefix={group_prefix}, version_hint={version_hint}")
+            f"开始搜索 groupId: artifact_id={artifact_id}, group_prefix={group_prefix}, version_hint={version_hint}")
 
         # 检查 Maven 仓库是否存在
         if not self.maven_home.exists():
@@ -1141,10 +1103,9 @@ class EasyCodeReaderServer:
             )]
 
         # 用于收集匹配结果
-        # key: group_id, value: {versions: [], sample_package: str, jar_path: Path}
+        # key: group_id, value: {versions: []}
         group_matches = {}
         scanned_groups = 0
-        scanned_jars = 0
         start_time = time.perf_counter()
 
         def search_maven_repo(base_path: Path):
@@ -1153,7 +1114,7 @@ class EasyCodeReaderServer:
             
             Maven 仓库结构: {maven_repo}/{groupId}/{artifactId}/{version}/
             """
-            nonlocal scanned_groups, scanned_jars
+            nonlocal scanned_groups
 
             try:
                 # 遍历仓库根目录的第一层（通常是 groupId 的第一部分）
@@ -1185,8 +1146,8 @@ class EasyCodeReaderServer:
                         if not should_explore:
                             continue
 
-                    # 递归查找 artifact_name 目录
-                    for artifact_dir in first_level.rglob(artifact_name):
+                    # 递归查找 artifact_id 目录
+                    for artifact_dir in first_level.rglob(artifact_id):
                         scanned_groups += 1
 
                         if not artifact_dir.is_dir():
@@ -1204,9 +1165,7 @@ class EasyCodeReaderServer:
                             # 初始化该 groupId 的记录
                             if group_id not in group_matches:
                                 group_matches[group_id] = {
-                                    "versions": [],
-                                    "sample_package": None,
-                                    "sample_jar": None
+                                    "versions": []
                                 }
 
                             # 遍历所有版本目录
@@ -1222,30 +1181,22 @@ class EasyCodeReaderServer:
 
                                 # 验证该版本是否有 JAR 文件（排除 sources 和 javadoc）
                                 jar_files = [
-                                    f for f in version_dir.glob(f"{artifact_name}-*.jar")
+                                    f for f in version_dir.glob(f"{artifact_id}-*.jar")
                                     if not f.name.endswith('-sources.jar')
                                        and not f.name.endswith('-javadoc.jar')
                                 ]
 
                                 if jar_files:
                                     # 对 SNAPSHOT 版本应用过滤
-                                    filtered_jars = self._filter_snapshot_jars(jar_files, artifact_name, version)
+                                    filtered_jars = self._filter_snapshot_jars(jar_files, artifact_id, version)
                                     
                                     if not filtered_jars:
                                         continue
                                     
                                     # 记录版本
                                     group_matches[group_id]["versions"].append(version)
-                                    
-                                    # 如果还没有提取过 sample_package，提取第一个 JAR 的 package
-                                    if not group_matches[group_id]["sample_package"] and filtered_jars:
-                                        scanned_jars += 1
-                                        sample_pkg = self._extract_sample_package(filtered_jars[0])
-                                        if sample_pkg:
-                                            group_matches[group_id]["sample_package"] = sample_pkg
-                                            group_matches[group_id]["sample_jar"] = filtered_jars[0]
 
-                                    logger.debug(f"找到版本: {group_id}:{artifact_name}:{version}")
+                                    logger.debug(f"找到版本: {group_id}:{artifact_id}:{version}")
 
                         except Exception as e:
                             logger.warning(f"处理路径 {artifact_dir} 时出错: {e}")
@@ -1262,44 +1213,28 @@ class EasyCodeReaderServer:
         # 计算搜索耗时
         elapsed_time = round(time.perf_counter() - start_time, 2)
 
-        # 计算置信度并构建结果
+        # 构建结果
         matches = []
         for group_id, data in group_matches.items():
             versions = data["versions"]
-            sample_package = data["sample_package"]
-            
-            # 计算置信度
-            confidence = "low"  # 默认低置信度
-            
-            if sample_package:
-                # high: package 路径以 groupId 开头
-                if sample_package.startswith(group_id):
-                    confidence = "high"
-                # medium: package 路径以 group_prefix 开头（如果提供）
-                elif group_prefix and sample_package.lower().startswith(group_prefix.lower()):
-                    confidence = "medium"
             
             matches.append({
                 "group_id": group_id,
-                "confidence": confidence,
                 "matched_versions": sorted(versions, reverse=True)[:10],  # 最多返回10个版本
-                "sample_package": sample_package,
                 "total_versions": len(versions)
             })
 
-        # 按置信度排序：high > medium > low，同级按 group_id 字典序
-        confidence_order = {"high": 0, "medium": 1, "low": 2}
-        matches.sort(key=lambda x: (confidence_order.get(x["confidence"], 3), x["group_id"]))
+        # 按 group_id 字典序排序
+        matches.sort(key=lambda x: x["group_id"])
 
         # 构建返回结果
         result = {
-            "artifact_name": artifact_name,
+            "artifact_id": artifact_id,
             "group_prefix": group_prefix if group_prefix else "none",
             "version_hint": version_hint if version_hint else "none",
             "total_matches": len(matches),
             "search_stats": {
                 "scanned_groups": scanned_groups,
-                "scanned_jars": scanned_jars,
                 "elapsed_seconds": elapsed_time
             },
             "matches": matches
@@ -1309,66 +1244,47 @@ class EasyCodeReaderServer:
         if len(matches) == 0:
             # 场景1: 未找到任何匹配
             result["hint"] = (
-                f"❌ 未找到 artifact '{artifact_name}' 的任何匹配\n\n"
+                f"❌ 未找到 artifact '{artifact_id}' 的任何匹配\n\n"
                 "可能原因：\n"
-                "1. artifact_name 拼写错误\n"
+                "1. artifact_id 拼写错误\n"
                 "2. 依赖未下载到本地仓库\n"
                 + (f"3. group_prefix '{group_prefix}' 过滤过严\n" if group_prefix else "")
                 + (f"4. version_hint '{version_hint}' 过滤过严（⚠️ 注意：AI 可能产生幻觉导致版本号错误）\n" if version_hint else "")
                 + "\n建议操作：\n"
-                "1. 不传 group_prefix 和 version_hint 重新搜索\n"
-                "2. 检查 artifact_name 拼写"
+                "1. group_prefix 可以修改成 1 级或者不传，version_hint 也可以不传，重新搜索\n"
+                "2. 检查 artifact_id 拼写"
             )
         else:
-            # 找到高置信度匹配
-            high_confidence_matches = [m for m in matches if m["confidence"] == "high"]
-            
-            if len(high_confidence_matches) == 1:
-                # 场景2: 找到唯一高置信度匹配
-                match = high_confidence_matches[0]
+            # 找到匹配
+            if len(matches) == 1:
+                # 场景2: 找到唯一匹配
+                match = matches[0]
                 versions_str = ", ".join(match["matched_versions"][:3])
                 if match["total_versions"] > 3:
                     versions_str += f" (共 {match['total_versions']} 个版本)"
                 
                 result["hint"] = (
-                    f"✅ 找到唯一高置信度匹配！\n\n"
+                    f"✅ 找到唯一匹配！\n\n"
                     f"📦 groupId: {match['group_id']}\n"
-                    f"🎯 置信度: {match['confidence']}\n"
-                    f"📊 匹配版本: {versions_str}\n"
-                    f"📁 示例包路径: {match['sample_package']}\n\n"
+                    f"📊 匹配版本: {versions_str}\n\n"
                     "下一步：使用 read_jar_source 读取源码\n"
                     f"  • group_id: {match['group_id']}\n"
-                    f"  • artifact_id: {artifact_name}\n"
+                    f"  • artifact_id: {artifact_id}\n"
                     f"  • version: {match['matched_versions'][0]}\n"
                     "  • class_name: <完全限定的类名>"
                 )
-            elif len(high_confidence_matches) > 1:
-                # 场景3: 找到多个高置信度候选
+            else:
+                # 场景3: 找到多个候选
                 suggestions = []
-                for i, m in enumerate(high_confidence_matches[:3], 1):
-                    suggestions.append(f"{i}. ⭐ {m['group_id']} ({m['confidence']})")
-                
-                other_matches = [m for m in matches if m["confidence"] != "high"]
-                for i, m in enumerate(other_matches[:2], len(high_confidence_matches) + 1):
-                    suggestions.append(f"{i}. {m['group_id']} ({m['confidence']})")
+                for i, m in enumerate(matches[:5], 1):
+                    suggestions.append(f"{i}. {m['group_id']}")
                 
                 result["hint"] = (
-                    f"🎯 找到 {len(matches)} 个候选 groupId，已按置信度排序\n\n"
+                    f"🎯 找到 {len(matches)} 个候选 groupId\n\n"
                     "建议选择：\n" + "\n".join(suggestions) + "\n\n"
                     "💡 提示：\n"
-                    "• 优先尝试 high 置信度的 groupId\n"
-                    "• 如果失败，依次尝试其他候选\n"
+                    "• 依次尝试每个 groupId\n"
                     "• 可查看 matched_versions 确认版本可用性"
-                )
-            else:
-                # 场景4: 找到匹配但置信度低
-                result["hint"] = (
-                    f"⚠️ 找到 {len(matches)} 个匹配，但置信度较低\n\n"
-                    "这可能表示：\n"
-                    "• package 结构与 groupId 不对齐\n"
-                    "• JAR 中无 .class 文件（可能是空包）\n"
-                    "• 需要手动验证正确性\n\n"
-                    "建议：依次尝试每个 groupId，直到 read_jar_source 成功"
                 )
 
         logger.info(f"搜索完成: 找到 {len(matches)} 个匹配，耗时 {elapsed_time}s")
