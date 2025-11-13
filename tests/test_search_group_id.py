@@ -271,5 +271,32 @@ async def test_search_group_id_case_insensitive(temp_maven_repo):
     assert json_result["total_matches"] == 1
 
 
+@pytest.mark.asyncio
+async def test_search_group_id_empty_matched_versions(temp_maven_repo):
+    """测试当 version_hint 过滤掉所有版本时的情况（bug 修复验证）"""
+    # 创建一个有真实版本的 artifact
+    create_test_artifact(temp_maven_repo, "org.springframework", "spring-context", "5.0.0.RELEASE")
+    
+    server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
+    
+    # 使用不存在的 version_hint，所有版本都会被过滤掉
+    result = await server._search_group_id(
+        artifact_id="spring-context",
+        group_prefix="org.springframework",
+        version_hint="999.0.0.NONEXISTENT"
+    )
+    
+    json_result = json.loads(result[0].text)
+    
+    # 应该返回 0 个匹配，而不是崩溃
+    assert json_result["total_matches"] == 0
+    assert len(json_result["matches"]) == 0
+    
+    # 应该包含有帮助的提示信息
+    assert "❌ 未找到" in json_result["hint"]
+    assert "version_hint" in json_result["hint"]
+    assert "过滤过严" in json_result["hint"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

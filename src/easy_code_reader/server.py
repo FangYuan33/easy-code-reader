@@ -1218,6 +1218,10 @@ class EasyCodeReaderServer:
         for group_id, data in group_matches.items():
             versions = data["versions"]
             
+            # 跳过没有匹配版本的 groupId（可能被 version_hint 过滤掉了所有版本）
+            if not versions:
+                continue
+            
             matches.append({
                 "group_id": group_id,
                 "matched_versions": sorted(versions, reverse=True)[:10],  # 最多返回10个版本
