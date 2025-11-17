@@ -148,13 +148,13 @@ public class Main {
 
 ---
 
+<a id="quick-start-env"></a>
 ## 环境要求
 
 - [uv](https://github.com/astral-sh/uv) - Python 包和项目管理工具
 - Python 3.10 或更高版本
 - Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
 
-<a id="quick-start-uvx"></a>
 ## 快速接入（方法一）：使用 uvx（推荐）
 
 如果您还没有安装 uv，可以通过以下方式快速安装：
@@ -192,6 +192,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
 
+<a id="quick-start-uv"></a>
 ## 快速接入（方法二）：使用 uv 安装到本地
 
 如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
@@ -235,11 +236,11 @@ uv tool install --upgrade easy-code-reader
 
 ### Q1: spawn uvx ENOENT spawn uvx ENOENT
 
-uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [环境要求](#quick-start-uvx)，并尝试重启 IDE 后再启动 MCP Server。
+uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [环境要求](#quick-start-env)，并尝试重启 IDE 后再启动 MCP Server。
 
 ### Q2: Downloading cpython-3.10.19-macos-aarch64-none (download) (17.7MiB) MCP error -32001: Request timed out
 
-Python 环境下载失败，尝试手动下载或重试下载，或者参考 [快速接入（方法二）](#quick-start-uvx)。
+Python 环境下载失败，尝试手动下载或重试下载，或者参考 [快速接入（方法二）](#quick-start-uv)。
 
 ---
 
