@@ -6,7 +6,7 @@
 
 <div align="center">
 
-一个强大的 MCP (Model Context Protocol) 服务器，用于智能读取 Java 源代码。支持从 Maven 依赖和本地项目中提取源码，配备双反编译器（CFR/Fernflower）自动选择机制，智能处理 SNAPSHOT 版本，完美支持多模块项目，让 AI 助手能够深入理解你的 Java 代码库。
+一个强大的本地 MCP Server，用于智能读取 Java 源代码。支持从 Maven 依赖（Jar 包）和本地项目中提取源码，配备双反编译器（CFR/Fernflower）自动选择机制，智能处理 SNAPSHOT 版本，完美支持多模块项目，让 AI 助手能够深入理解你的 Java 代码库。
 
 A powerful MCP (Model Context Protocol) server for intelligently reading Java source code. Supports extracting source code from Maven dependencies and local projects, equipped with dual decompiler (CFR/Fernflower) auto-selection mechanism, intelligent SNAPSHOT version handling, and perfect multi-module project support. Empowers AI assistants to deeply understand your Java codebase.
 
