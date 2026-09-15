@@ -3,16 +3,16 @@
 This guide helps AI coding agents work productively in the Easy Code Reader codebase. It summarizes architecture, workflows, conventions, and integration points unique to this project.
 
 ## Architecture Overview
-**Purpose:** MCP (Model Context Protocol) server that extracts Java source code from Maven dependencies and local projects.
+**Purpose:** MCP (Model Context Protocol) server that extracts Java source code from Maven JAR dependencies.
 
 **Core Components:**
-- `src/easy_code_reader/server.py`: MCP server implementation (4 tools: `read_jar_source`, `read_project_code`, `list_all_project`, `list_project_files`)
+- `src/easy_code_reader/server.py`: MCP server implementation (2 tools: `search_group_id`, `read_jar_source`)
 - `decompiler.py`: Auto-selects CFR (Java 8-20) or Fernflower (Java 21+) based on `_detect_java_version()`
 - `config.py`: Maven repo path resolution via `MAVEN_HOME`, `M2_HOME`, or `MAVEN_REPO` env vars
 - `decompilers/`: Bundled `fernflower.jar` and `cfr.jar` via setuptools package_data
 
 **Data Flow:**
-1. MCP request → `server.py` tool handler (`_read_jar_source` or project tools)
+1. MCP request → `server.py` tool handler (`_search_group_id` or `_read_jar_source`)
 2. Maven path lookup: `group.id/artifact/version/artifact-version.jar` (handles SNAPSHOT timestamps)
 3. Source extraction priority: sources JAR → decompilation → fallback class info
 4. Decompilation cache: `{jar_dir}/easy-code-reader/{jar_name}/` (cleaned for SNAPSHOT updates)
@@ -24,10 +24,10 @@ This guide helps AI coding agents work productively in the Easy Code Reader code
 **Run Service:**
 ```bash
 # Recommended (if published to PyPI)
-uvx easy-code-reader [--maven-repo PATH] [--project-dir PATH]
+uvx easy-code-reader [--maven-repo PATH]
 
 # Development mode
-python -m easy_code_reader [--maven-repo PATH] [--project-dir PATH]
+python -m easy_code_reader [--maven-repo PATH]
 ```
 
 **Testing:**
@@ -58,18 +58,6 @@ pip install -e ".[dev]"    # With dev dependencies (pytest, build, twine)
 1. Check `artifact-version-sources.jar` (if `prefer_sources=True`, default)
 2. Fallback to decompile `artifact-version.jar`
 3. Last resort: `_fallback_class_info()` returns bytecode metadata stub
-
-**Path Patterns (local projects):**
-- Input: `com.example.MyClass` (Java class) or `pom.xml` or `src/main/resources/application.yml`
-- Search order for Java classes: `src/main/java/`, `src/`, root, then submodules (detects via `pom.xml`/`build.gradle`)
-- Search order for config files: root, `src/main/resources/`, `src/`, `config/`, then submodules
-- Module detection: `_search_in_modules()` recursively checks subdirs with Maven/Gradle markers
-- Supports all file types: `.java`, `.xml`, `.properties`, `.yaml`, `.json`, `.gradle`, `.md`, `.sql`, etc.
-
-**File Filtering (list_project_files):**
-- **Include:** `.java`, `.xml`, `.properties`, `.yaml`, `.json`, `.gradle`, `.md`, `pom.xml`
-- **Exclude:** `src/test`, `target/`, `build/`, `.git/`, `.idea/`, `node_modules/`
-- **Sub-path mode:** Use `sub_path` param to scope to `{project}/{sub_path}` for large projects (e.g., `"core"`)
 
 **Caching Behavior:**
 - Cache key: actual JAR path (Fernflower outputs to same dir, CFR uses temp dir then repackaged to ZIP → renamed to JAR)
@@ -104,16 +92,12 @@ pip install -e ".[dev]"    # With dev dependencies (pytest, build, twine)
 ## Key Patterns & Examples
 **AI-Friendly Error Messages:**
 - Tools include intelligent, structured hints when queries fail with clear actionable steps
-- `read_project_code` not found → Suggests using `list_project_files` with `file_name_pattern` for fuzzy matching first (reduces context size)
-- `list_all_project` with `project_name_pattern` but no matches → Provides structured hint with emoji indicators (⚠️/✓) and numbered steps
-- `list_project_files` with `file_name_pattern` but no matches → Explains possible reasons and multiple adjustment strategies
+- `search_group_id` finds candidate groupIds and available versions; relax `group_prefix` or `version_hint` if no matches are found
 - Missing JAR → Returns detailed troubleshooting with priority-ordered steps, including how to check `pom.xml` and run Maven commands
-- All hints emphasize context-efficiency strategies (fuzzy matching before full list) to optimize for LLM token usage
 
 **Error Handling:**
 - `UnsupportedClassVersionError` → Suggests upgrading Java or switching decompiler in `_decompile_with_cfr()` / `_decompile_with_fernflower()`
 - Missing JAR → Returns error with Maven path, artifact coords, and step-by-step troubleshooting guide
-- Bad class name → Returns error suggesting to use `list_project_files` first
 
 **Testing Approach:**
 - `tests/test_jar_reader.py`: Uses `tempfile` and `zipfile` to create test JARs with proper magic numbers
@@ -137,10 +121,6 @@ if decompiled_jar.exists():
     with zipfile.ZipFile(decompiled_jar, 'r') as zf:
         return zf.read(java_file_path).decode('utf-8')
 
-# Multi-module project search
-for subdir in project_path.iterdir():
-    if (subdir / 'pom.xml').exists() or (subdir / 'build.gradle').exists():
-        # Search in module
 ```
 
 ## Directory References
