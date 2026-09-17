@@ -15,7 +15,11 @@ on:
         default: false
 
 jobs:
+  verify:
+    uses: ./.github/workflows/tests.yml
+
   build-and-publish:
+    needs: verify
     name: 构建并发布 Python 包
     runs-on: ubuntu-latest
     permissions:

@@ -6,88 +6,31 @@
 
 <div align="center">
 
-一个强大的本地 MCP Server，用于智能读取 Java 源代码。支持从 Maven 依赖（Jar 包）和本地项目中提取源码，配备双反编译器（CFR/Fernflower）自动选择机制，智能处理 SNAPSHOT 版本，完美支持多模块项目，让 AI 助手能够深入理解你的 Java 代码库。
+一个强大的本地 MCP Server，用于智能读取 Java 源代码。支持从 Maven 依赖（JAR 包）中提取源码，配备双反编译器（CFR/Fernflower）自动选择机制，智能处理 SNAPSHOT 版本，让 AI 助手能够深入理解你的 Java 代码库。
 
-A powerful MCP (Model Context Protocol) server for intelligently reading Java source code. Supports extracting source code from Maven dependencies and local projects, equipped with dual decompiler (CFR/Fernflower) auto-selection mechanism, intelligent SNAPSHOT version handling, and perfect multi-module project support. Empowers AI assistants to deeply understand your Java codebase.
+A powerful MCP (Model Context Protocol) server for intelligently reading Java source code. Supports extracting source code from Maven dependencies, equipped with dual decompiler (CFR/Fernflower) auto-selection mechanism and intelligent SNAPSHOT version handling. Empowers AI assistants to deeply understand your Java codebase.
 
 </div>
 
 ---
 
----
-
 ## 功能特性
 
-- 📁 **本地项目代码读取**：支持从本地项目目录读取源代码，支持多模块 Maven/Gradle 项目
-- 📋 **项目列举功能**：列出项目目录下所有项目，便于快速查找和定位，支持项目名称模糊匹配
-- 🗂️ **智能文件过滤**：自动过滤测试目录、编译产物和 IDE 配置，只显示源代码和配置文件，支持文件名模糊匹配
-- 🎯 **模块聚焦模式**：支持只列出项目中特定子目录的文件，精准定位目标代码
 - 🤖 **AI 友好的智能提示**：所有工具都具备智能错误提示机制，当查询失败时主动引导 AI 助手调整策略，有效减少幻觉和重复尝试
-- 📦 **从 Maven 仓库读取源代码**：自动从本地 Maven 仓库（默认获取 **MAVEN_HOME** 目录或 `~/.m2/repository`，支持配置）中查找和读取 JAR 包源代码
-- 🔍 **智能源码提取**：优先从 sources jar 提取源码，如果不存在则自动反编译 class 文件
-- 🛠️ **双反编译器支持**：支持 CFR 和 Fernflower 反编译器，根据 Java 版本自动选择最佳反编译器
-- ⚡ **智能缓存机制**：反编译结果缓存在 JAR 包同目录的 `easy-code-reader/` 下，避免重复反编译
-- 🔄 **SNAPSHOT 版本支持**：智能处理 SNAPSHOT 版本，自动查找带时间戳的最新版本并管理缓存
+- 📦 **从 Maven 仓库读取源代码**：自动从本地 Maven 仓库（支持启动参数、`MAVEN_REPO` 和 Maven settings 配置）中查找和读取 JAR 包源代码
+- 🔍 **源码读取**：优先从 sources JAR 提取源码，其次复用磁盘缓存，缓存不可用时反编译原始 JAR
+- 🛠️ **双反编译器支持**：根据运行时 Java 版本选择 CFR 或 Fernflower，失败时尝试兼容的备用反编译器
+- ⚡ **智能缓存机制**：反编译结果保存在 Maven 版本目录，SNAPSHOT 使用最新时间戳包名管理缓存，校验实际输入包的大小与修改时间
+- 🔄 **SNAPSHOT 支持**：普通 SNAPSHOT 主包优先读取，最新时间戳包名用于管理缓存
+- 📄 **按行读取**：默认返回全文，也可通过 `start_line`、`end_line` 指定阅读范围
 
 ## 最佳实践
 
 Easy Code Reader 特别适合与 Claude、ChatGPT 等大模型配合使用，接下来以 VSCode 结合 Copilot 为例，介绍一些最佳实践：
 
-### 1. 跨项目调用，根据调用链路分析源码
+### 阅读 jar 包源码，根据源码完成代码编写
 
-在比较复杂的项目中一般会拆分多个微服务，某些功能的实现可能会跨多个项目调用，如果靠人梳理相关逻辑会比较耗时，所以可以将涉及的代码 clone 到本地后使用 Easy Code Reader MCP 并结合 Code Agent 进行分析。接下来我们以 Nacos 项目为例，假设我们想了解 Nacos 的服务注册功能是如何实现的，可以按照以下步骤操作。
-
-首先，比如我们创建了一个 Nacos Client 客户端，在这段逻辑中执行服务注册：
-
-```java
-public class Main {
-    private static final Logger logger = LoggerFactory.getLogger(Main.class);
-
-    public static void main(String[] args) throws NacosException, InterruptedException {
-        logger.info("开始初始化 Nacos 客户端...");
-
-        Properties properties = new Properties();
-        properties.put(PropertyKeyConst.SERVER_ADDR, "127.0.0.1:8848");
-        properties.put(PropertyKeyConst.NAMESPACE, "7430d8fe-99ce-4b20-866e-ed021a0652c9");
-
-        NamingService namingService = NacosFactory.createNamingService(properties);
-
-        System.out.println("=== 注册服务实例 ===");
-        try {
-            // 注册一个服务实例
-            namingService.registerInstance("test-service0", "127.0.0.1", 8080);
-            // 添加事件监听器
-            namingService.subscribe("test-service", event -> {
-                System.out.println("服务实例变化: " + event);
-            });
-        } catch (Exception e) {
-            System.out.println("服务注册失败(预期，因为服务器可能未启动): " + e.getMessage());
-        }
-
-        TimeUnit.HOURS.sleep(3);
-    }
-}
-```
-
-因为我们创建 Nacos Client 执行服务注册时是由 Nacos 提供的 SDK 直接调用 `NamingService#registerInstance` 方法实现的，我们并不清楚底层是如何实现的，如果我们想要了解实现细节，那么就需要将 Nacos 的源码 Clone 下来，并使用 Easy Code Reader 读取相关源码，下面是一个示例 Prompt：
-
-```text
-你是一位 Java 专家，请你帮我分析 #file:Main.java 中 namingService.registerInstance 方法的逻辑，这段逻辑的实现在本地项目的 nacos 中，所以你需要在 nacos 读取一系列相关的源码才能了解它的核心逻辑，读取 nacos 项目的代码你可以借助 easy-code-reader MCP，其中包含你可以获取项目信息、项目中所有的文件信息和某个文件的工具
-```
-
-![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img.png)
-
-如图所示，它会不断地根据源码调用链路，读取相关源码并进行分析，最终我们就能了解服务注册的实现细节，会使用到 MCP Easy Code Reader 提供的多个工具 `list_all_project`、`list_project_files` 和 `read_project_code`， 具体调用细节图示如下：
-
-![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img1.png)
-
-最终得到分析结果，节省很多时间：
-
-![img.png](https://raw.githubusercontent.com/FangYuan33/easy-code-reader/master/imges/img2.png)
-
-### 2. 阅读 jar 包源码，根据源码完成代码编写
-
-在使用第三方或其他外部依赖时，Copilot 或其他 Code Agent 并不能直接读取 jar 包中的源码，往往需要我们将源码内容手动复制到提示词中才能完成，费时费力。在 Easy Code Reader 中提供了 `read_jar_source` 工具来读取 jar 包中的源码，帮我们完成开发实现。我们还是以如下代码为例，现在我想实现多个服务实例的注册，但是我又不了解 `NamingService` 的实现，便可以借助 `read_jar_source` 来完成：
+在使用第三方依赖时，可以让 AI 助手通过 MCP 获取指定版本的源码，结合真实实现进行分析。在 Easy Code Reader 中提供了 `read_jar_source` 工具来读取 jar 包中的源码，帮我们完成开发实现。以下面代码为例，现在我想实现多个服务实例的注册，但是我又不了解 `NamingService` 的实现，便可以借助 `read_jar_source` 来完成：
 
 ```java
 public class Main {
@@ -122,7 +65,7 @@ public class Main {
 ```
 
 ```text
-你是一位 Java 技术专家，精通 Nacos 框架，请你帮我在 #file:Main.java 中完成注册多个服务实例的逻辑，在编写代码前，你需要先试用 easy-code-reader 的 read_jar_source 工具读取 com.alibaba.nacos.api.naming.NamingService 的源码信息来了解注册多个服务实例的方法
+你是一位 Java 技术专家，精通 Nacos 框架，请你帮我在 #file:Main.java 中完成注册多个服务实例的逻辑，在编写代码前，你需要先使用 easy-code-reader 的 read_jar_source 工具读取 com.alibaba.nacos.api.naming.NamingService 的源码信息来了解注册多个服务实例的方法
 ```
 
 处理过程如下所示：
@@ -131,31 +74,26 @@ public class Main {
 
 这样我们便能够快速地了解 `NamingService` 的实现细节，从而完成代码编写工作，节省了大量时间。
 
-### 3. 跨项目阅读源码，根据源码完成本项目实现
-
-在大型项目中，某些功能的实现可能会跨多个模块或微服务，如果部分逻辑已经实现并且后续其他应用的逻辑需要依赖这部分逻辑时，可以借助 Easy Code Reader 读取相关模块的源码，帮助我们更好地理解和实现当前项目的功能，示例 Prompt 如下：
-
-```text
-你是一位 Java 技术专家，现在我要实现 XXX 的业务逻辑，这部分逻辑的实现需要调用本地项目 A 中 XXX 的接口及其实现，请你借助 MCP easy-code-reader 来帮我读取 A 项目中的源码，并帮我实现 XXX 的业务逻辑
-```
-
-当然除了这三种应用场景以外，还可以使用 Easy Code Reader 完成以下事项：
+还可以使用 Easy Code Reader 完成以下事项：
 
 - 异常问题快速溯源：如果有异常信息是外部 jar 包依赖中抛出来的，可以使用 `read_jar_source` 工具根据异常堆栈日志快速定位异常点
 - 依赖升级影响评估（旧/新版本差异核对）：同样是使用 `read_jar_source` 工具来完成新旧版本的实现差异，评估升级影响
-- 业务代码逻辑评审：如果业务逻辑开发实现在多个项目中，可以借助读取本地项目代码的工具 `list_all_project`、`list_project_files` 和 `read_project_code`，来分析新增的逻辑是否满足业务要求
-- 新人快速上手多个微服务：借助读取本地项目代码的工具，可以根据接口调用链路快速理清微服务项目代码之间的关系，提高上手速度
 
 ---
 
 <a id="quick-start-env"></a>
+
 ## 环境要求
 
-- [uv](https://github.com/astral-sh/uv) - Python 包和项目管理工具
-- Python 3.10 或更高版本
-- Java Development Kit (JDK) - 用于运行反编译器，要求至少 Java 8
+- Python 3.10 或更高版本。
+- [uv](https://github.com/astral-sh/uv)：用于下文的安装和运行命令。
+- Java：生成反编译结果时需要 `java` 在 PATH 中，建议使用 JDK 11 或 21。直接读取 sources JAR 或有效缓存时无需启动 Java。
+- 运行自动测试需要 `javac`，测试脚本使用 `javac --release 8`；建议同样使用 JDK 11 或 21。
+- 使用 Inspector 浏览器调试时，需要 Node.js 22.19.0 或更高版本及 `npx`。
 
 ## 快速接入（方法一）：使用 uvx（推荐）
+
+以下两种接入方式运行包源中的已发布版本。调试当前仓库代码请使用[本地开发与验证](#local-development)和 [Inspector 调试](#inspector-debugging)。
 
 如果您还没有安装 uv，可以通过以下方式快速安装：
 
@@ -167,10 +105,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-或者参考 [uv 官网](https://github.com/astral-sh/uv) 进行安装，并配置 uv 的安装路径添加到系统 PATH 中，以便可以直接使用 `uvx` 命令。[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行，参考以下 MCP 客户端配置：
+或者参考 [uv 官网](https://github.com/astral-sh/uv) 进行安装，并配置 uv 的安装路径添加到系统 PATH 中，以便可以直接使用 `uvx` 命令。[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包和项目管理工具。使用 `uvx` 可以无需预先安装，直接运行，使用 `mcpServers` JSON 配置格式的客户端可参考以下示例：
 
-- `--maven-repo`: 指定 Maven 仓库路径，将 `/custom/path/to/maven/repository` 内容替换为本地 Maven 仓库路径即可，不配置默认使用 **MAVEN_HOME** 目录或 `~/.m2/repository`
-- `--project-dir`: 指定本地项目目录路径，将 `/path/to/projects` 替换为实际保存所有项目的路径
+- `--maven-repo`: 指定 Maven 仓库路径，将 `/custom/path/to/maven/repository` 内容替换为本地 Maven 仓库路径即可，不配置时依次读取 `MAVEN_REPO`、用户 settings、Maven 全局 settings，最后使用 `~/.m2/repository`
 
 ```json
 {
@@ -180,9 +117,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
       "args": [
         "easy-code-reader",
         "--maven-repo",
-        "/custom/path/to/maven/repository",
-        "--project-dir",
-        "/path/to/projects"
+        "/custom/path/to/maven/repository"
       ],
       "env": {}
     }
@@ -190,9 +125,10 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 }
 ```
 
-将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成多项目、多依赖的 Java 源代码读取工作。
+将以上内容配置好后，AI 助手即可通过 MCP 协议调用 Easy Code Reader 提供的工具，完成 Maven 依赖的 Java 源代码读取工作。
 
 <a id="quick-start-uv"></a>
+
 ## 快速接入（方法二）：使用 uv 安装到本地
 
 如果使用 **快速接入（方法一）** 安装运行失败，那么可以采用直接安装到本地的方法，运行如下命令：
@@ -207,7 +143,7 @@ uv tool install easy-code-reader
 which easy-code-reader
 ```
 
-比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，那么需要按照如下方式配置 MCP 客户端，**注意 `args` 参数配置**，**注意 `args` 参数配置**，**注意 `args` 参数配置**：
+比如，输出结果是：/Users/fangyuan/.local/bin/easy-code-reader，则将它填入 MCP 客户端的 `command`，启动参数填入 `args`：
 
 ```json
 {
@@ -216,9 +152,7 @@ which easy-code-reader
       "command": "/Users/fangyuan/.local/bin/easy-code-reader",
       "args": [
         "--maven-repo",
-        "/custom/path/to/maven/repository",
-        "--project-dir",
-        "/path/to/projects"
+        "/custom/path/to/maven/repository"
       ],
       "env": {}
     }
@@ -234,127 +168,60 @@ uv tool install --upgrade easy-code-reader
 
 ## 常见问题
 
-### Q1: spawn uvx ENOENT spawn uvx ENOENT
+### Q1: 启动时提示 spawn uvx ENOENT
 
 uv 命令未找到，确保已正确安装 uv 并将其路径添加到系统 PATH 中，参考 [环境要求](#quick-start-env)，并尝试重启 IDE 后再启动 MCP Server。
 
-### Q2: Downloading cpython-3.10.19-macos-aarch64-none (download) (17.7MiB) MCP error -32001: Request timed out
+### Q2: 首次下载 Python 或依赖时超时
 
-Python 环境下载失败，尝试手动下载或重试下载，或者参考 [快速接入（方法二）](#quick-start-uv)。
+可先在终端按[快速接入（方法二）](#quick-start-uv)完成安装，再配置 MCP 客户端；调试本地源码时，也可按[本地开发与验证](#local-development)使用已安装的 Python 创建环境。
 
 ---
 
 ## 工具说明
 
-Easy Code Reader 提供了 5 个主要工具，分为两大使用场景：
+Easy Code Reader 提供两个工具，用于查找 Maven 坐标和读取 JAR 包源码。
 
-### 场景 1: 读取 Maven JAR 包源代码
+### search_group_id
 
-#### search_artifact
-
-在本地 Maven 仓库中搜索指定的 artifact，返回完整的 Maven 坐标。
-
-**用途：**
-- 当只知道 artifact ID 但不确定完整 Maven 坐标时，快速查找
-- 从类路径（如 `xxx.jar!/com/example/...`）或 JAR 文件名推断完整坐标
-- 探索本地 Maven 仓库中的可用依赖版本
+根据 artifactId 和可选的 groupId 前缀，在本地 Maven 仓库中查找 groupId 及可用版本，辅助调用 `read_jar_source`。
 
 **参数：**
 
-- `artifact_id` (必需): Maven artifact ID，例如 `spring-core`
-- `version_pattern` (可选): 版本号模糊匹配模式，例如 `1.0.0`、`SNAPSHOT`、`20251110`
-- `group_id_hint` (可选): groupId 提示，用于缩小搜索范围，例如 `org.springframework`、`com.alibaba`
+- `artifact_id`（必需）：不含版本号的 Maven artifact ID，例如 `spring-core`。
+- `group_prefix`（可选）：完整 groupId 前缀（按点号分段匹配，不区分大小写），例如 `org.springframework`，用于缩小搜索范围。
+- `version_hint`（可选）：版本子串，例如 `5.3.21` 或 `SNAPSHOT`；不确定版本时可不传。
 
-**工作原理：**
+每次调用都直接搜索当前 Maven 仓库，不缓存搜索结果。新依赖安装或删除后，下次搜索即可反映变化。
 
-1. 递归遍历 Maven 仓库目录结构（groupId/artifactId/version）
-2. 查找匹配 artifact_id 的目录
-3. 应用可选的过滤条件（version_pattern, group_id_hint）
-4. 返回所有匹配的 Maven 坐标及其 JAR 文件信息
-
-**性能优化提示：**
-- 如果仓库较大，强烈建议提供 `group_id_hint` 参数缩小搜索范围
-- 所有过滤条件均不区分大小写
-
-**智能提示机制：**
-
-根据搜索结果数量，工具会提供不同的 AI 友好提示：
-
-- **未找到结果**：提供详细的排查建议，包括检查拼写、下载依赖、调整过滤条件等
-- **找到唯一匹配**：直接展示完整坐标和下一步操作指引（调用 read_jar_source）
-- **找到少量匹配（2-5个）**：列出所有坐标供选择，给出版本选择建议
-- **找到大量匹配（>5个）**：建议使用过滤参数缩小范围，提供具体的过滤示例
-
-**示例 1 - 基础搜索：**
-
-```json
-{
-  "artifact_id": "spring-core"
-}
-```
-
-**示例 2 - 使用版本过滤：**
-
-```json
-{
-  "artifact_id": "nacos-client",
-  "version_pattern": "2.0.0"
-}
-```
-
-**示例 3 - 使用 groupId 提示：**
-
-```json
-{
-  "artifact_id": "dubbo",
-  "group_id_hint": "com.alibaba"
-}
-```
-
-**返回格式：**
+**示例：**
 
 ```json
 {
   "artifact_id": "spring-core",
-  "version_pattern": "none",
-  "group_id_hint": "none",
-  "total_matches": 3,
-  "searched_dirs": 42,
-  "elapsed_seconds": 0.15,
-  "matches": [
-    {
-      "group_id": "org.springframework",
-      "artifact_id": "spring-core",
-      "version": "5.3.21",
-      "coordinate": "org.springframework:spring-core:5.3.21",
-      "jar_count": 1,
-      "jar_files": [
-        {
-          "name": "spring-core-5.3.21.jar",
-          "size_mb": 1.52
-        }
-      ],
-      "path": "/Users/xxx/.m2/repository/org/springframework/spring-core/5.3.21"
-    }
-  ],
-  "hint": "🎯 找到 3 个匹配的 artifact..."
+  "group_prefix": "org.springframework",
+  "version_hint": "5.3.21"
 }
 ```
 
+**返回内容：**
+
+- `matches`：按 groupId 排序的候选列表，每项包含 `group_id`、`matched_versions`（按 Maven 版本顺序降序排列，最多 10 个）和 `total_versions`。
+- `total_matches`：匹配的 groupId 数量。
+- `search_stats`：实际扫描目录数和耗时；`scanned_groups` 保留为扫描目录数的兼容字段。
+- `hint`：后续操作建议。
+
 **典型工作流：**
 
-1. 使用 `search_artifact` 搜索 artifact（只需提供 artifact_id）
-2. 从搜索结果中选择正确的 Maven 坐标
-3. 使用 `read_jar_source` 工具读取源代码
+1. 使用 `search_group_id` 查找 groupId 和可用版本。
+2. 从结果中选择正确的 Maven 坐标。
+3. 使用 `read_jar_source` 读取指定类的源码。
 
-💡 **使用建议**：
-- 当 `read_jar_source` 报错"未找到 JAR 文件"时，优先使用此工具查找正确坐标
-- 对于大型 Maven 仓库，建议提供 `group_id_hint` 参数提升搜索速度
-- 搜索结果会自动按版本排序，最新版本在前
+没有匹配结果时，检查 artifact ID 拼写，放宽 `group_prefix` 或移除 `version_hint` 后重试。
 
-#### read_jar_source
+### read_jar_source
 
-从 Maven 依赖中读取 Java 类的源代码（优先从 sources jar，否则反编译）。
+从本地 Maven 依赖读取 Java 类源码，依次尝试 sources JAR、反编译缓存和原始 JAR 反编译。
 
 **参数：**
 
@@ -362,24 +229,46 @@ Easy Code Reader 提供了 5 个主要工具，分为两大使用场景：
 - `artifact_id` (必需): Maven artifact ID，例如 `spring-core`
 - `version` (必需): Maven version，例如 `5.3.21`
 - `class_name` (必需): 完全限定的类名，例如 `org.springframework.core.SpringVersion`
-- `prefer_sources` (可选，默认 `true`): 优先使用 sources jar 而不是反编译
+- `prefer_sources`（可选，默认 `true`）：优先读取 sources JAR；设为 `false` 时跳过源码包，但仍会复用有效的反编译缓存。
+- `start_line` / `end_line`（可选）：从 1 开始，包含首尾；不传时保持全文返回。只传一端时读取到对应文件边界。起始行越界或范围倒置返回错误，结束行超过文件长度时取文件末尾。
 
-**工作原理：**
+**读取流程：**
 
-1. 首先尝试从 `-sources.jar` 中提取源代码（如果 `prefer_sources=true`）
-2. 如果 sources jar 不存在或提取失败，自动回退到反编译主 JAR 文件
-3. 支持 SNAPSHOT 版本的智能处理
+1. 校验参数，定位 Maven 依赖；二进制主包存在时，先确认目标 `.class` 条目及基本文件头有效。
+2. `prefer_sources=true` 时，尝试从 sources JAR 读取目标源码；支持只有源码包的依赖版本。
+3. 源码不可用时，检查 `easy-code-reader/` 下的正式缓存。缓存有效则直接返回。
+4. 缓存未命中时，反编译器直接读取原始 JAR，反编译整个包，再从结果中读取请求类的源码。
+5. 结果校验并写入正式缓存后，执行缓存容量清理和本次临时目录清理，然后返回源码。
 
-**智能错误提示：**
+**SNAPSHOT 选择规则：**
 
-当 JAR 文件未找到时，工具会提供详细的排查建议：
-- 提示可能的原因（依赖未安装、Maven 坐标错误）
-- 建议使用 `read_project_code` 工具读取项目的 `pom.xml` 文件
-- 指导在 `<dependencies>` 部分核对正确的 Maven 坐标
-- 提示确认坐标后重新调用工具
-- 说明可能需要执行 Maven 构建命令安装依赖
+| 仓库中的主包 | 实际反编译输入 | 缓存文件名 |
+|---|---|---|
+| 普通 SNAPSHOT 和时间戳包都存在 | 普通 SNAPSHOT 主包 | 最新时间戳主包名 |
+| 只有普通 SNAPSHOT 主包 | 普通 SNAPSHOT 主包 | 与主包同名 |
+| 只有时间戳主包 | 最新时间戳主包 | 与该时间戳包同名 |
 
-这个智能提示机制特别适合与 AI 助手配合使用，能有效减少因 Maven 坐标错误导致的重复尝试。
+时间戳按日期时间和数字构建号排序。普通 SNAPSHOT 主包优先使用普通 sources，缺失时尝试该时间戳构建的 sources；直接读取时间戳主包时匹配其 sources。普通发布版本精确匹配主包及对应 sources。
+
+内部类名使用 `Outer$Inner`，必要时返回包含它的外部类源码并附带提示。仅有 sources JAR 时也可以读取；`tests`、`all` 等 classifier 包不会被当作主包。
+
+**错误处理：**
+
+失败时 MCP 响应设置 `isError=true`，文本内容中的 JSON 包含 `error.code`、`error.message` 和 `error.hint`。例如：
+
+```json
+{
+  "error": {
+    "code": "ARTIFACT_NOT_FOUND",
+    "message": "未找到 JAR 文件: org.example:demo:1.0",
+    "hint": "使用 search_group_id 核对 Maven 坐标。"
+  }
+}
+```
+
+常见错误码包括 `INVALID_ARGUMENT`、`CONFIG_ERROR`、`ARTIFACT_NOT_FOUND`、`CLASS_NOT_FOUND`、`SOURCE_DECODE_ERROR`、`INVALID_JAR`、`DECOMPILER_UNAVAILABLE`、`DECOMPILE_FAILED`、`DECOMPILE_TIMEOUT`、`CACHE_UNAVAILABLE` 和 `INPUT_CHANGED`。
+
+JAR 缺失时可先用 `search_group_id` 核对坐标；依赖需要预先通过 Maven 下载或安装到本地仓库。反编译失败会返回错误说明。
 
 **示例：**
 
@@ -392,7 +281,7 @@ Easy Code Reader 提供了 5 个主要工具，分为两大使用场景：
 }
 ```
 
-**返回格式：**
+**返回结构示例（`code` 已简化）：**
 
 ```json
 {
@@ -403,249 +292,20 @@ Easy Code Reader 提供了 5 个主要工具，分为两大使用场景：
 }
 ```
 
+全文读取仅返回上面四个字段。显式传入行范围时，另外返回 `total_lines`、`start_line`、`end_line` 和 `is_partial`。内部类映射或源码解码回退等特殊情况可附带简短的 `warnings`。实际 JAR 路径和解析版本仅用于内部处理及调试日志。
+
 **source_type 字段说明：**
 
 `source_type` 字段标识源码的来源，帮助 AI 助手了解代码的可靠性和新鲜度：
 
-- `"sources.jar"`: 从 Maven 的 sources JAR 文件中提取（最可靠，与发布版本完全一致）
+- `"sources.jar"`：从本地 sources JAR 提取的源文件
 - `"decompiled"`: 通过反编译器新反编译生成（可能存在反编译不完整的情况）
 - `"decompiled_cache"`: 从之前反编译的缓存中读取（避免重复反编译，提升性能）
 
 💡 **使用建议**：
-- `sources.jar` 来源的代码最准确，可直接作为分析依据
+- 有 sources JAR 时优先阅读其中的原始源码
 - `decompiled` 来源的代码可能会有语法糖恢复、泛型擦除等反编译特征
 - `decompiled_cache` 与 `decompiled` 质量相同，只是从缓存读取以提升效率
-
-### 场景 2: 读取本地项目源代码
-
-#### list_all_project
-
-列举项目目录下所有的项目文件夹名称。
-
-**用途：**
-- 查看所有可用的项目
-- 当输入不完整的项目名时，帮助推理出最接近的项目名
-- 验证项目是否存在
-- 支持项目名称模糊匹配，快速查找特定项目
-
-**参数：**
-
-- `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
-- `project_name_pattern` (可选): 项目名称模糊匹配模式（不区分大小写），用于过滤项目列表
-  - 支持左右模糊匹配，例如 `nacos` 将匹配包含 `nacos`、`Nacos`、`NACOS` 的项目名
-  - ⚠️ **使用建议**：如果匹配模式过于严格可能导致遗漏目标项目
-  - 💡 **最佳实践**：若未找到预期结果，建议不传此参数重新查询完整列表
-
-**智能提示机制：**
-- 当使用 `project_name_pattern` 但未匹配到项目时，返回结果会包含提示信息
-- 建议 AI 助手在未找到预期项目时，不传 `project_name_pattern` 参数重新查询
-- 有效减少因过度过滤导致的查询失败
-
-**示例 1 - 列出所有项目：**
-
-```json
-{}
-```
-
-**示例 2 - 使用项目名称模糊匹配：**
-
-```json
-{
-  "project_name_pattern": "spring"
-}
-```
-
-**返回格式：**
-
-```json
-{
-  "project_dir": "/path/to/projects",
-  "project_name_pattern": "spring",
-  "total_projects": 2,
-  "projects": [
-    "spring-boot",
-    "spring-cloud-demo"
-  ],
-  "hint": "已使用项目名称模式 'spring' 进行过滤。如果未找到预期的项目，可能是模式匹配过于严格。建议：不传入 project_name_pattern 参数重新调用 list_all_project 工具查看完整项目列表。",
-  "total_all_projects": 5
-}
-```
-
-**提示信息说明：**
-- 当使用 `project_name_pattern` 但未匹配到任何项目时，`hint` 字段会提示模式可能过于严格，并显示总项目数 `total_all_projects`
-- 当使用 `project_name_pattern` 且有匹配结果时，`hint` 字段会提醒如果结果不符合预期可以不传参数重新查询，同时显示总项目数
-- 这个智能提示机制帮助 AI 助手更好地调整查询策略，避免因过度过滤错过目标项目
-
-#### list_project_files
-
-列出 Java 项目中的源代码文件和配置文件路径。
-
-**用途：**
-- 了解项目结构和文件组织
-- 查找特定的类或配置文件
-- 分析类之间的关系和依赖
-- 当项目文件过多时，聚焦特定模块
-- 支持文件名模糊匹配，快速定位目标文件
-
-**支持两种模式：**
-
-1. **全项目模式**（不指定 `sub_path`）：列出整个项目的所有文件
-2. **聚焦模式**（指定 `sub_path`）：只列出指定子目录下的文件
-
-**参数：**
-
-- `project_name` (必需): 项目名称，例如 `nacos`
-- `sub_path` (可选): 指定项目内的子目录路径，例如 `core` 或 `address/src/main/java`
-- `file_name_pattern` (可选): 文件名模糊匹配模式（不区分大小写），用于进一步过滤文件列表
-  - 支持左右模糊匹配，例如 `Service` 将匹配包含 `service`、`Service`、`SERVICE` 的文件名
-  - ⚠️ **使用建议**：如果匹配模式过于严格可能导致遗漏目标文件
-  - 💡 **最佳实践**：若未找到预期结果，建议不传此参数重新查询完整列表
-- `project_dir` (可选): 项目所在的父目录路径，如未提供则使用启动时配置的路径
-
-**自动过滤内容：**
-- ✅ 包含：Java 源代码 (.java)、配置文件 (.xml, .properties, .yaml, .json 等)、构建脚本、文档
-- ❌ 排除：测试目录 (`src/test`)、编译产物 (`target`, `build`)、IDE 配置、版本控制文件
-
-**智能提示机制：**
-- 当使用 `file_name_pattern` 但未匹配到文件时，返回结果会包含提示信息
-- 建议 AI 助手在未找到预期文件时，不传 `file_name_pattern` 参数重新查询
-- 有效减少因过度过滤导致的查询失败
-
-**示例 1 - 列出整个项目：**
-
-```json
-{
-  "project_name": "nacos"
-}
-```
-
-**示例 2 - 只列出 core 模块：**
-
-```json
-{
-  "project_name": "nacos",
-  "sub_path": "core"
-}
-```
-
-**示例 3 - 使用文件名模糊匹配：**
-
-```json
-{
-  "project_name": "nacos",
-  "file_name_pattern": "Service"
-}
-```
-
-**返回格式：**
-
-```json
-{
-  "project_name": "nacos",
-  "project_dir": "/path/to/projects/nacos",
-  "search_scope": "core",
-  "file_name_pattern": "Service",
-  "total_files": 15,
-  "files": [
-    "core/src/main/java/com/alibaba/nacos/core/service/NacosService.java",
-    "api/src/main/java/com/alibaba/nacos/api/naming/NamingService.java",
-    "..."
-  ],
-  "hint": "已使用文件名模式 'Service' 进行过滤。如果未找到预期的文件，可能是模式匹配过于严格。建议：不传入 file_name_pattern 参数重新调用 list_project_files 工具查看完整文件列表。"
-}
-```
-
-**提示信息说明：**
-- 当使用 `file_name_pattern` 但未匹配到任何文件时，`hint` 字段会提示模式可能过于严格
-- 当使用 `file_name_pattern` 且有匹配结果时，`hint` 字段会提醒如果结果不符合预期可以不传参数重新查询
-- 这个智能提示机制帮助 AI 助手更好地调整查询策略，避免因过度过滤错过目标文件
-
-#### read_project_code
-
-从本地项目目录中读取指定文件的源代码或配置文件内容。
-
-**用途：**
-- 读取具体类或文件的完整源代码
-- 查看配置文件内容（pom.xml、application.yml、application.properties 等）
-- 读取项目文档（README.md、SQL 脚本等）
-- 支持多模块 Maven/Gradle 项目
-- 自动搜索常见的源代码和配置文件路径
-
-**参数：**
-
-- `project_name` (必需): 项目名称，例如 `my-project`
-- `file_path` (必需): 文件标识符：可以是完全限定的 Java 类名或文件相对路径
-  - Java 类名格式：`com.example.MyClass` (自动查找对应的 .java 文件)
-  - 相对路径格式：`src/main/java/com/example/MyClass.java`
-  - 模块相对路径：`core/src/main/java/com/example/MyClass.java`
-  - 配置文件路径：`src/main/resources/application.yml`、`pom.xml`
-  - 文档文件：`README.md`、`docs/setup.md`
-- `project_dir` (可选): 项目目录路径，如未提供则使用启动时配置的路径
-
-**支持的文件类型：**
-- Java 源代码 (.java)
-- 配置文件 (.xml, .properties, .yaml, .yml, .json, .conf, .config)
-- 构建脚本 (.gradle, .gradle.kts, pom.xml)
-- 文档文件 (.md, .txt)
-- SQL 脚本 (.sql)
-- Shell 脚本 (.sh, .bat)
-
-**自动搜索路径：**
-- 对于 Java 类名：`src/main/java/{class_path}.java`、`src/{class_path}.java`、`{class_path}.java`
-- 对于配置文件：项目根目录、`src/main/resources/`、`src/`、`config/` 及子模块
-- 支持多模块项目中的子模块路径
-
-**推荐工作流程：**
-1. 使用 `list_all_project` 确认项目存在
-2. 使用 `list_project_files`（建议带 `file_name_pattern` 参数）查看文件列表
-3. 使用本工具读取具体文件内容
-
-**示例 1 - 使用类名读取 Java 源代码：**
-
-```json
-{
-  "project_name": "my-spring-app",
-  "file_path": "com.example.service.UserService"
-}
-```
-
-**示例 2 - 使用相对路径读取 Java 文件：**
-
-```json
-{
-  "project_name": "nacos",
-  "file_path": "address/src/main/java/com/alibaba/nacos/address/component/AddressServerGeneratorManager.java"
-}
-```
-
-**示例 3 - 读取配置文件：**
-
-```json
-{
-  "project_name": "my-spring-app",
-  "file_path": "src/main/resources/application.yml"
-}
-```
-
-**示例 4 - 读取项目根目录的文件：**
-
-```json
-{
-  "project_name": "my-spring-app",
-  "file_path": "pom.xml"
-}
-```
-
-**返回格式：**
-
-```json
-{
-  "project_name": "my-spring-app",
-  "class_name": "com.example.service.UserService",
-  "file_path": "/path/to/projects/my-spring-app/src/main/java/com/example/service/UserService.java",
-  "code": "package com.example.service;\n\nimport ...\n\npublic class UserService {\n    // ...\n}"
-}
-```
 
 ---
 
@@ -656,15 +316,24 @@ Easy Code Reader 提供了 5 个主要工具，分为两大使用场景：
 ```
 easy-code-reader/
 ├── src/easy_code_reader/
-│   ├── __init__.py
+│   ├── __init__.py          # Python 包入口
 │   ├── __main__.py          # 程序入口点
-│   ├── server.py            # MCP 服务器实现
+│   ├── server.py            # 两个 MCP Tool 与使用指南
+│   ├── service.py           # 源码读取流程
+│   ├── repository.py        # Maven 文件解析与实时搜索
+│   ├── versions.py          # Maven 版本排序
+│   ├── source.py            # 内部类、源码提取与行范围
+│   ├── cache.py             # 按 JAR 名称保存的磁盘缓存
+│   ├── errors.py            # 统一错误
+│   ├── io_utils.py          # 可安全取消的文件操作调度
 │   ├── config.py            # 配置管理
 │   ├── decompiler.py        # 反编译器集成
 │   └── decompilers/         # 反编译器 JAR 文件目录
 │       ├── fernflower.jar   # Fernflower 反编译器
 │       └── cfr.jar          # CFR 反编译器
 ├── tests/                   # 测试文件
+├── scripts/                 # MCP 冒烟验证与发布脚本
+├── docs/CHANGELOG.md         # 版本变更说明
 ├── pyproject.toml           # Python 项目配置
 ├── requirements.txt         # Python 依赖
 └── README.md                # 本文档
@@ -672,30 +341,122 @@ easy-code-reader/
 
 ### 反编译器
 
-Easy Code Reader 支持多个反编译器，并根据 Java 版本自动选择最合适的：
+按运行时 Java 版本选择优先使用的反编译器：
 
-| Java 版本 | 推荐反编译器     | 说明                                                                                                       |
-|---------|------------|----------------------------------------------------------------------------------------------------------|
-| 8 - 20  | CFR        | 自动使用 **CFR** 反编译器（兼容 Java 8+），已包含在包中：`src/easy_code_reader/decompilers/cfr.jar`                          |
-| 21+     | Fernflower | 自动使用 **Fernflower** 反编译器（IntelliJ IDEA 使用的反编译器），已包含在包中：`src/easy_code_reader/decompilers/fernflower.jar` |
+| Java 运行时版本 | 优先使用 | 说明 |
+|---|---|---|
+| 6–20 | CFR | 使用随包提供的 `decompilers/cfr.jar` |
+| 21 及以上 | Fernflower | 使用随包提供的 `decompilers/fernflower.jar`，失败时可尝试 CFR |
 
-#### 反编译缓存机制
+只有满足 Java 运行要求且文件可用的反编译器会被执行；尝试备用反编译器也计入同一次请求的超时预算。反编译结果可能存在泛型、语法糖等还原差异。
 
-反编译后的文件会被缓存在 JAR 包所在目录的 `easy-code-reader/` 子目录中，例如：
+#### 反编译缓存与执行
 
-如果 JAR 包位置为：
+缓存直接保存在实际 JAR 所在版本目录的 `easy-code-reader/` 下，无需单独配置缓存路径。普通版本与原始 JAR 同名；SNAPSHOT 有时间戳包时使用最新时间戳包名，否则使用普通 SNAPSHOT 包名。
 
-```
-~/.m2/repository/org/springframework/spring-core/5.3.21/spring-core-5.3.21.jar
-```
-
-反编译后的源文件将存储在：
-
-```
-~/.m2/repository/org/springframework/spring-core/5.3.21/easy-code-reader/spring-core-5.3.21.jar
+```text
+~/.m2/repository/org/example/demo/1.0-SNAPSHOT/
+├── demo-1.0-SNAPSHOT.jar            # 优先作为反编译输入
+├── demo-1.0-20260916.120000-2.jar    # 用于确定缓存版本名称
+└── easy-code-reader/
+    └── demo-1.0-20260916.120000-2.jar
 ```
 
-缓存文件本身也是一个 JAR 格式的压缩包，包含所有反编译后的 `.java` 文件，这样可以避免重复反编译相同的 JAR 包，提高性能。但 **针对 SNAPSHOT 版本需要特殊处理：** 因为 Maven 针对快照版本会生成带时间戳的 JAR（如 `artifact-1.0.0-20251030.085053-1.jar`），Easy Code Reader 会自动查找最新的带时间戳版本进行反编译，并且以缓存以 `artifact-1.0.0-20251030.085053-1.jar` 名称存储，提供版本判断的依据，当检测到新版本时，会自动清理旧的 SNAPSHOT 缓存，生成新的缓存文件。
+最新时间戳包名变化时使用新的缓存文件。缓存内部记录实际读取的输入包的大小和修改时间；普通 SNAPSHOT 包更新后，即使时间戳文件名不变也会重新生成缓存。若同名文件被覆盖且大小、修改时间均未变化，需要手动删除对应缓存。
+
+缓存命中时直接读取磁盘文件。缓存缺失时，反编译器直接读取解析出的原始 JAR，并将中间输出写入独立临时目录；反编译结果经过校验、确认原始文件未发生变化后，通过原子替换写入正式缓存。并发请求使用各自的临时输出目录，完成后清理。
+
+每次新缓存生成后，按该版本目录默认 1 GiB 的预算清理较久未使用的新格式缓存。本次刚生成的缓存不在该次清理中删除，因此预算可能暂时超过。已有同名缓存缺少输入校验信息时，在下一次读取对应 JAR 时重新生成。
+
+反编译需要对应 Maven 缓存目录可写，权限不足时明确报错；直接读取 sources JAR 不需要写入缓存。Python 安装目录无需写权限。
+
+- `--decompile-timeout`：反编译请求预算，默认 60 秒；超时/取消会终止并回收 Java 进程。
+- 日志只输出到 stderr，不在安装目录创建文件。
+- 源码使用严格 UTF-8 解码；失败可回退到对应二进制包，并附带 `warnings`。
+- MCP 调用等待源码读取或反编译完成后一次性返回结果；异步子进程让服务器在等待 Java 时继续处理其他请求及取消，不返回后台任务 ID，也不需要客户端轮询。
+
+### 配置与迁移
+
+Maven 路径优先级为 `--maven-repo` → `MAVEN_REPO` → `~/.m2/settings.xml` 的 `localRepository` → Maven 安装目录的 `conf/settings.xml` → `~/.m2/repository`。`MAVEN_HOME` / `M2_HOME` 用于定位 Maven 安装目录，不再拼接 `/repository`。原来依赖此行为的用户应显式配置 `--maven-repo`。
+
+支持 `~`、相对路径（相对于服务器启动工作目录）、`${user.home}` 和 `${env.NAME}`。未解析的 settings 变量会给出错误，可通过启动参数覆盖。
+
+本版本要求 `mcp>=1.30,<2`。`read_jar_source` 保持默认全文返回；`group_prefix` 按完整 groupId 前缀分段匹配，例如 `org.springframework`，原先使用中间子串的调用应相应调整。详见 [1.4.0 变更说明](docs/CHANGELOG.md)。
+
+<a id="local-development"></a>
+
+## 本地开发与验证
+
+以下命令从仓库根目录执行，适用于 macOS/Linux；已有 `.venv` 时可跳过环境创建：
+
+```bash
+uv venv .venv --python python3
+uv pip install --python .venv/bin/python -e ".[dev]"
+.venv/bin/python -m easy_code_reader --help
+.venv/bin/python -m pytest -q
+.venv/bin/python scripts/smoke_test.py
+```
+
+可编辑安装会加载当前仓库代码。冒烟脚本创建临时 Maven 仓库和真实编译的 JAR，通过 MCP stdio 验证工具发现、搜索、全文/分段读取、反编译、缓存及错误响应；成功时输出 `"smoke": "passed"` 和各步骤耗时。
+
+使用 `mcpServers` JSON 配置的客户端，可将本地虚拟环境 Python 的绝对路径填入 `command`：
+
+```json
+{
+  "mcpServers": {
+    "easy-code-reader-local": {
+      "command": "/absolute/path/to/easy-code-reader/.venv/bin/python",
+      "args": [
+        "-m",
+        "easy_code_reader",
+        "--maven-repo",
+        "/absolute/path/to/maven/repository"
+      ]
+    }
+  }
+}
+```
+
+项目使用 stdio 通信，由 MCP 客户端启动服务进程。手动启动后等待输入是正常行为。修改代码后需要断开并重新连接，让 Python 进程重新加载模块。
+
+构建并检查分发包：
+
+```bash
+.venv/bin/python -m build
+.venv/bin/python -m twine check dist/*
+```
+
+Windows 中将 `.venv/bin/python` 替换为 `.venv/Scripts/python.exe`，并使用对应终端的路径语法。
+
+<a id="inspector-debugging"></a>
+
+## 使用 MCP Inspector 调试
+
+完成本地可编辑安装后，可使用以下已验证的 Inspector 2.7.0 命令（macOS/Linux）。仓库路径以 `~/.m2/repository` 为例，可替换为实际路径：
+
+```bash
+npx --registry=https://registry.npmjs.org -y \
+  @modelcontextprotocol/inspector@2.7.0 \
+  "$PWD/.venv/bin/python" -- \
+  -m easy_code_reader \
+  --maven-repo "$HOME/.m2/repository"
+```
+
+此命令为本次下载指定 npm 官方源，不修改全局 npm 配置。Inspector 会启动本地 Web 界面；打开终端打印的完整地址，其中包含本次会话的访问令牌。
+
+1. 在 **Servers** 中选择预填的本地服务，点击 **Connect**。
+2. 进入 **Tools**，确认存在 `search_group_id` 和 `read_jar_source`。
+3. 先用 `search_group_id` 查询 `artifact_id=spring-core`、`group_prefix=org.springframework`，选择本地实际存在的版本。
+4. 调用 `read_jar_source` 读取 `org.springframework.core.SpringVersion`，将 `prefer_sources` 设为 `false`，连续调用两次。无有效缓存时第一次返回 `decompiled`，后续返回 `decompiled_cache`；若已有有效缓存，第一次也可以命中缓存。
+5. 可再设置 `start_line`、`end_line` 验证分段读取；不使用可选参数时，在表单中省略对应字段。
+
+工具返回在 **Tools** 中查看，进程 stderr 在 **Console** 中查看，协议请求与响应在 **Protocol** 中查看。修改代码后断开再连接即可重新加载。
+
+参考：[Inspector 官方说明](https://modelcontextprotocol.io/docs/tools/inspector)、[Web 界面说明](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector/web)。
+
+## 当前适用范围
+
+输入为本地 Maven 坐标和完整 Java 类名，依赖需要预先下载或安装到仓库中。读取顶层/基础版本的类路径，暂不处理嵌套 JAR 或 Multi-release 的运行时版本选择。
 
 ## 许可证
 

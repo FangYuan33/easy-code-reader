@@ -1,0 +1,8 @@
+Easy Code Reader
+
+src/easy_code_reader/versions.py adapts the version-comparison algorithm in
+Apache Maven 3.9.9 ComparableVersion, distributed under the Apache License 2.0.
+Apache Maven
+Copyright The Apache Software Foundation
+https://github.com/apache/maven/tree/maven-3.9.9/maven-artifact
+The Python adaptation was made for Easy Code Reader.

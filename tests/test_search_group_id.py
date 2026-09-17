@@ -167,13 +167,10 @@ async def test_search_group_id_empty_input(temp_maven_repo):
     """测试空输入验证"""
     server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
     
-    # 测试空字符串
-    result = await server._search_group_id("")
-    assert "错误: artifact_id 不能为空" in result[0].text
-    
-    # 测试只有空格
-    result = await server._search_group_id("   ")
-    assert "错误: artifact_id 不能为空" in result[0].text
+    from easy_code_reader.errors import ReaderError
+    for value in ("", "   "):
+        with pytest.raises(ReaderError, match="artifact_id 不能为空"):
+            await server._search_group_id(value)
 
 
 @pytest.mark.asyncio
@@ -261,7 +258,7 @@ async def test_search_group_id_case_insensitive(temp_maven_repo):
     server = EasyCodeReaderServer(maven_repo_path=str(temp_maven_repo))
     
     # group_prefix 不区分大小写
-    result = await server._search_group_id("test-case", group_prefix="example")
+    result = await server._search_group_id("test-case", group_prefix="com.example")
     json_result = json.loads(result[0].text)
     assert json_result["total_matches"] == 1
     
@@ -300,3 +297,31 @@ async def test_search_group_id_empty_matched_versions(temp_maven_repo):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+async def test_search_immediately_reflects_repository_changes(tmp_path, jar_factory):
+    from easy_code_reader.repository import MavenRepository
+    repo = MavenRepository(tmp_path)
+    assert repo.search("demo")["total_matches"] == 0
+    first = jar_factory(tmp_path / "org/example/demo/1.0/demo-1.0.jar")
+    assert repo.search("demo")["matches"][0]["matched_versions"] == ["1.0"]
+    jar_factory(tmp_path / "org/example/demo/2.0/demo-2.0.jar")
+    assert repo.search("demo")["matches"][0]["matched_versions"] == ["2.0", "1.0"]
+    first.unlink()
+    assert repo.search("demo")["matches"][0]["matched_versions"] == ["2.0"]
+
+
+async def test_prefix_scans_only_matching_subtree(tmp_path, jar_factory, monkeypatch):
+    from easy_code_reader.repository import MavenRepository
+    import easy_code_reader.repository as module
+    for group in ("org/example", "org/example2", "com/other"):
+        jar_factory(tmp_path / group / "demo/1.0/demo-1.0.jar")
+    visited = []
+    walk = module.os.walk
+    def record(root, **kwargs):
+        visited.append(root)
+        return walk(root, **kwargs)
+    monkeypatch.setattr(module.os, "walk", record)
+    result = MavenRepository(tmp_path).search("demo", group_prefix="org.example")
+    assert visited == [tmp_path / "org/example"]
+    assert [match["group_id"] for match in result["matches"]] == ["org.example"]
