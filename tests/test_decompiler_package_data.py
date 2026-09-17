@@ -18,11 +18,10 @@ def test_decompiler_found_in_package():
     assert decompiler.fernflower_jar is not None, "Fernflower JAR should be detected"
     assert decompiler.fernflower_jar.exists(), "Fernflower JAR file should exist"
     
-    # The JAR should be in the package directory (for PyPI distribution)
-    # or in the project root (for development)
-    jar_path_str = str(decompiler.fernflower_jar)
-    assert 'decompilers/fernflower.jar' in jar_path_str, \
-        f"JAR should be in decompilers directory, got: {jar_path_str}"
+    # Compare path components so the check works with Windows separators too.
+    jar_path = decompiler.fernflower_jar
+    assert jar_path.parts[-2:] == ("decompilers", "fernflower.jar"), \
+        f"JAR should be in decompilers directory, got: {jar_path}"
     
     # Verify the JAR is accessible
     assert decompiler.fernflower_jar.is_file(), "JAR should be a file"
@@ -48,7 +47,7 @@ def test_package_data_location_priority():
         
         if package_jar_path.exists():
             # Package location exists, it should be used
-            assert str(package_jar_path) in str(decompiler.fernflower_jar), \
+            assert package_jar_path.resolve() == decompiler.fernflower_jar.resolve(), \
                 "Package location should be preferred when it exists"
 
 

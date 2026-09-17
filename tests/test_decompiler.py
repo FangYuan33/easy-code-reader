@@ -3,6 +3,7 @@
 import asyncio
 import dataclasses
 import os
+import re
 import subprocess
 import sys
 import zipfile
@@ -18,7 +19,8 @@ async def test_real_decompilation_and_inner_class_cache(reader_config, real_jar,
     first = await decompiler.decompile_class(real_jar, "org.example.Outer")
     assert first.source_type == "decompiled"
     assert "return 42" in first.code
-    assert "ArrayList<String>" in first.code
+    # Require the generic superclass while allowing either engine's formatting/import style.
+    assert re.search(r"\bextends\s+(?:java\.util\.)?ArrayList\s*<\s*(?:java\.lang\.)?String\s*>", first.code)
     assert "hello" in first.code
     calls = []
     original = decompiler._run_process
@@ -196,7 +198,7 @@ async def test_decompilers_read_original_jar(reader_config, real_jar, tmp_path, 
     async def detect():
         return 21 if engine == "fernflower" else 11
     async def run(command, **kwargs):
-        assert command[3] == real_jar.resolve()
+        assert command[-3 if "--outputdir" in command else -2] == real_jar.resolve()
         assert not list(Path(kwargs["cwd"]).rglob("*.jar"))
         code = "package org.example; public class Outer { public int value() { return 42; } }"
         if engine == "cfr":
@@ -206,6 +208,7 @@ async def test_decompilers_read_original_jar(reader_config, real_jar, tmp_path, 
             (output / "Outer.java").write_text(code)
         else:
             assert "--outputdir" not in command
+            assert "-dgs=1" in command
             with zipfile.ZipFile(command[-1] / real_jar.name, "w") as archive:
                 archive.writestr("org/example/Outer.java", code)
         return 0, "", ""

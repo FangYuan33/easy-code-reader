@@ -152,7 +152,7 @@ async def test_snapshot_cache_uses_timestamp_label_and_actual_input_stats(server
     original_run = server.decompiler._run_process
     async def observe(command, **kwargs):
         if "-jar" in command:
-            inputs.append(command[3])
+            inputs.append(command[-3] if "--outputdir" in command else command[-2])
         return await original_run(command, **kwargs)
     monkeypatch.setattr(server.decompiler, "_run_process", observe)
     async def read():

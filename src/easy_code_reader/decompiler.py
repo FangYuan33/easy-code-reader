@@ -115,7 +115,11 @@ class JavaDecompiler:
                     continue
                 output = workspace / kind
                 await run_io(output.mkdir)
-                command = ["java", "-jar", engine, jar_path]
+                command = ["java", "-jar", engine]
+                if kind == "fernflower":
+                    # Fernflower defaults to erased types even when Signature attributes exist.
+                    command.append("-dgs=1")
+                command.append(jar_path)
                 command += ["--outputdir", output] if kind == "cfr" else [output]
                 try:
                     status, stdout, stderr = await self._run_process(command, cwd=workspace)
