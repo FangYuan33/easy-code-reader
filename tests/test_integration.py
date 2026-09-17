@@ -1,248 +1,191 @@
-"""Integration tests for Easy Code Reader MCP Server."""
+"""Source service and MCP contract integration tests."""
 
 import asyncio
 import json
-import pytest
-import tempfile
-import zipfile
-from pathlib import Path
 
+import pytest
+from mcp import types
+
+from easy_code_reader.errors import ReaderError
 from easy_code_reader.server import EasyCodeReaderServer
-from easy_code_reader.config import Config
+from easy_code_reader.source import JavaSource
 
 
 @pytest.fixture
-def mock_maven_repo(tmp_path):
-    """创建一个模拟的 Maven 仓库结构"""
-    maven_repo = tmp_path / "maven_repo"
-    maven_repo.mkdir()
-    
-    # 创建一个测试 Maven 依赖结构
-    # 例如: org.example:test-lib:1.0.0
-    group_path = maven_repo / "org" / "example"
-    artifact_path = group_path / "test-lib" / "1.0.0"
-    artifact_path.mkdir(parents=True)
-    
-    # 创建一个简单的 JAR 文件
-    jar_file = artifact_path / "test-lib-1.0.0.jar"
-    with zipfile.ZipFile(jar_file, 'w', zipfile.ZIP_DEFLATED) as jar:
-        # 添加 manifest
-        manifest = "Manifest-Version: 1.0\nMain-Class: org.example.Main\n"
-        jar.writestr("META-INF/MANIFEST.MF", manifest)
-        
-        # 添加一个类文件
-        class_bytes = bytes([
-            0xCA, 0xFE, 0xBA, 0xBE,  # Magic number
-            0x00, 0x00,               # Minor version
-            0x00, 0x34,               # Major version 52 (Java 8)
-        ]) + b'\x00' * 100
-        jar.writestr("org/example/Main.class", class_bytes)
-    
-    # 创建一个 sources JAR 文件
-    sources_jar = artifact_path / "test-lib-1.0.0-sources.jar"
-    with zipfile.ZipFile(sources_jar, 'w', zipfile.ZIP_DEFLATED) as jar:
-        # 添加 Java 源文件
-        java_source = """package org.example;
-
-public class Main {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}
-"""
-        jar.writestr("org/example/Main.java", java_source)
-    
-    return maven_repo
+def server(reader_config):
+    return EasyCodeReaderServer(config=reader_config)
 
 
-@pytest.mark.asyncio
-async def test_server_initialization(mock_maven_repo):
-    """测试服务器初始化"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    assert server.maven_home == mock_maven_repo
-    assert server.decompiler is not None
+async def call(server, name="read_jar_source", **arguments):
+    request = types.CallToolRequest(method="tools/call", params=types.CallToolRequestParams(name=name, arguments=arguments))
+    result = await server.server.request_handlers[types.CallToolRequest](request)
+    return result.root
 
 
-@pytest.mark.asyncio
-async def test_extract_from_sources_jar(mock_maven_repo):
-    """测试从 sources jar 提取源代码"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="test-lib",
-        version="1.0.0",
-        class_name="org.example.Main",
-        prefer_sources=True
-    )
-    
-    assert len(result) == 1
-    response_text = result[0].text
-    response_data = json.loads(response_text)
-    
-    # 验证返回的字段（包含新增的 source_type 字段）
-    assert response_data["class_name"] == "org.example.Main"
-    assert response_data["source_type"] == "sources.jar"
-    assert "Hello, World!" in response_data["code"]
-    assert "public static void main" in response_data["code"]
+async def test_sources_full_text_has_minimal_fields(server, real_jar, jar_factory):
+    text = "package org.example;\r\npublic class Outer {\r\n  int value() { return 42; }\r\n}\r\n"
+    sources = jar_factory(real_jar.with_name("demo-1.0-sources.jar"), {"org/example/Outer.java": text})
+    result = await call(server, group_id="org.example", artifact_id="demo", version="1.0", class_name="org.example.Outer")
+    assert not result.isError
+    payload = json.loads(result.content[0].text)
+    assert payload["code"] == text
+    assert payload["source_type"] == "sources.jar"
+    assert set(payload) == {"class_name", "artifact", "source_type", "code"}
 
 
-@pytest.mark.asyncio
-async def test_get_jar_path(mock_maven_repo):
-    """测试获取 JAR 文件路径"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    jar_path = server._get_jar_path("org.example", "test-lib", "1.0.0")
-    
-    assert jar_path is not None
-    assert jar_path.exists()
-    assert jar_path.name == "test-lib-1.0.0.jar"
+@pytest.mark.parametrize("start,end,expected", [(2, 3, "two\nthree\n"), (2, None, "two\nthree\nfour\n"),
+                                               (None, 2, "one\ntwo\n"), (3, 99, "three\nfour\n")])
+async def test_line_ranges(server, real_jar, jar_factory, start, end, expected):
+    jar_factory(real_jar.with_name("demo-1.0-sources.jar"), {"org/example/Outer.java": "one\ntwo\nthree\nfour\n"})
+    result = await server._read_jar_source("org.example", "demo", "1.0", "org.example.Outer", start_line=start, end_line=end)
+    payload = json.loads(result[0].text)
+    assert payload["code"] == expected
+    assert payload["total_lines"] == 4
+    assert payload["is_partial"]
 
 
-@pytest.mark.asyncio
-async def test_get_sources_jar_path(mock_maven_repo):
-    """测试获取 sources JAR 文件路径"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    sources_jar_path = server._get_sources_jar_path("org.example", "test-lib", "1.0.0")
-    
-    assert sources_jar_path is not None
-    assert sources_jar_path.exists()
-    assert sources_jar_path.name == "test-lib-1.0.0-sources.jar"
+@pytest.mark.parametrize("start,end", [(0, None), (2, 1), (True, None), (1.5, None), (99, None)])
+async def test_bad_ranges_are_errors(server, real_jar, jar_factory, start, end):
+    jar_factory(real_jar.with_name("demo-1.0-sources.jar"), {"org/example/Outer.java": "one\ntwo\n"})
+    result = await call(server, group_id="org.example", artifact_id="demo", version="1.0",
+                        class_name="org.example.Outer", start_line=start,
+                        **({"end_line": end} if end is not None else {}))
+    assert result.isError
 
 
-@pytest.mark.asyncio
-async def test_jar_not_found(mock_maven_repo):
-    """测试 JAR 文件不存在的情况"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="non-existent",
-        version="1.0.0",
-        class_name="org.example.NonExistent"
-    )
-    
-    assert len(result) == 1
-    response_text = result[0].text
-    assert "未找到 JAR 文件" in response_text or "not found" in response_text.lower()
+async def test_missing_jar_is_mcp_error(server):
+    result = await call(server, group_id="org.example", artifact_id="missing", version="1.0", class_name="org.example.Outer")
+    assert result.isError
+    assert json.loads(result.content[0].text)["error"]["code"] == "ARTIFACT_NOT_FOUND"
 
 
-def test_config_maven_home():
-    """测试 Maven 仓库配置"""
-    original_maven_home = Config.get_maven_home()
-    
-    # 设置自定义路径
-    custom_path = "/custom/maven/repo"
-    Config.set_maven_home(custom_path)
-    
-    assert Config.get_maven_home() == Path(custom_path)
-    
-    # 恢复原始路径
-    Config.set_maven_home(str(original_maven_home))
+async def test_internal_class_uses_outer_source(server, real_jar, jar_factory):
+    jar_factory(real_jar.with_name("demo-1.0-sources.jar"), {"org/example/Outer.java": "public class Outer { class Inner {} }"})
+    result = await server._read_jar_source("org.example", "demo", "1.0", "org.example.Outer$Inner")
+    payload = json.loads(result[0].text)
+    assert payload["class_name"] == "org.example.Outer$Inner"
+    assert "Outer.java" in payload["warnings"][0]
+    assert "source_file" not in payload
+    with pytest.raises(ReaderError) as error:
+        await server._read_jar_source("org.example", "demo", "1.0", "org.example.Outer$Ghost")
+    assert error.value.code == "CLASS_NOT_FOUND"
 
 
-@pytest.mark.asyncio
-async def test_decompiler_caching(tmp_path):
-    """Test decompiler caching mechanism"""
-    # Create a temporary Maven repository
-    maven_repo = tmp_path / "maven_repo"
-    maven_repo.mkdir()
-    
-    # Create test dependency
-    artifact_path = maven_repo / "com" / "example" / "cached" / "1.0.0"
-    artifact_path.mkdir(parents=True)
-    
-    # Create a JAR file (no sources)
-    jar_file = artifact_path / "cached-1.0.0.jar"
-    with zipfile.ZipFile(jar_file, 'w', zipfile.ZIP_DEFLATED) as jar:
-        manifest = "Manifest-Version: 1.0\n"
-        jar.writestr("META-INF/MANIFEST.MF", manifest)
-        
-        # Add a class file
-        class_bytes = bytes([
-            0xCA, 0xFE, 0xBA, 0xBE,  # Magic number
-            0x00, 0x00,               # Minor version
-            0x00, 0x34,               # Major version 52 (Java 8)
-        ]) + b'\x00' * 100
-        jar.writestr("com/example/TestClass.class", class_bytes)
-    
-    # Create cache directory and decompiled JAR (simulate already decompiled situation)
-    # The cache directory structure should be: <jar-dir>/easy-code-reader/<original-jar-name>.jar
-    cache_dir = artifact_path / "easy-code-reader"
-    cache_dir.mkdir(parents=True)
-    
-    # Create a decompiled JAR with .java source
-    cached_jar = cache_dir / "cached-1.0.0.jar"
-    cached_content = """package com.example;
-
-public class TestClass {
-    // This is from cache
-}
-"""
-    with zipfile.ZipFile(cached_jar, 'w') as zf:
-        zf.writestr("com/example/TestClass.java", cached_content)
-    
-    # Initialize server and attempt decompilation
-    server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
-    
-    # Call decompilation (should read from cache)
-    code, source_type = server.decompiler.decompile_class(jar_file, "com.example.TestClass")
-    
-    # Verify that cached content is returned with correct source_type
-    assert code is not None
-    assert "This is from cache" in code
-    assert source_type == "decompiled_cache"
-    # Cache JAR should still exist
-    assert cached_jar.exists()
+async def test_decode_failure_uses_selected_binary(server, real_jar, jar_factory, monkeypatch):
+    jar_factory(real_jar.with_name("demo-1.0-sources.jar"), {"org/example/Outer.java": b"\xff"})
+    async def decompile(path, name, cache_jar_name=None):
+        assert path == real_jar
+        return JavaSource("actual", "org/example/Outer.java", "decompiled")
+    monkeypatch.setattr(server.decompiler, "decompile_class", decompile)
+    payload = json.loads((await server._read_jar_source("org.example", "demo", "1.0", "org.example.Outer"))[0].text)
+    assert payload["source_type"] == "decompiled"
+    assert payload["warnings"]
 
 
-@pytest.mark.asyncio
-async def test_input_validation(mock_maven_repo):
-    """测试输入验证"""
-    server = EasyCodeReaderServer(maven_repo_path=str(mock_maven_repo))
-    
-    # 测试空 group_id
-    result = await server._read_jar_source(
-        group_id="",
-        artifact_id="test-lib",
-        version="1.0.0",
-        class_name="org.example.Main"
-    )
-    assert len(result) == 1
-    assert "group_id" in result[0].text
-    
-    # 测试空 artifact_id
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="",
-        version="1.0.0",
-        class_name="org.example.Main"
-    )
-    assert len(result) == 1
-    assert "artifact_id" in result[0].text
-    
-    # 测试空 version
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="test-lib",
-        version="",
-        class_name="org.example.Main"
-    )
-    assert len(result) == 1
-    assert "version" in result[0].text
-    
-    # 测试空 class_name
-    result = await server._read_jar_source(
-        group_id="org.example",
-        artifact_id="test-lib",
-        version="1.0.0",
-        class_name=""
-    )
-    assert len(result) == 1
-    assert "class_name" in result[0].text
+async def test_source_only_decode_failure_is_error(server, reader_config, jar_factory):
+    jar_factory(reader_config.maven_repo / "org/example/demo/1.0/demo-1.0-sources.jar", {"org/example/Outer.java": b"\xff"})
+    with pytest.raises(ReaderError) as error:
+        await server._read_jar_source("org.example", "demo", "1.0", "org.example.Outer")
+    assert error.value.code == "SOURCE_DECODE_ERROR"
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+async def test_normalized_input_uses_timestamp_cache_name(server, reader_config, compiled_classes, jar_factory, monkeypatch):
+    directory = reader_config.maven_repo / "org/example/demo/1.0-SNAPSHOT"
+    timestamp = jar_factory(directory / "demo-1.0-20260915.120000-2.jar", compiled_classes)
+    ordinary = jar_factory(directory / "demo-1.0-SNAPSHOT.jar", compiled_classes)
+    async def decompile(path, name, cache_jar_name=None):
+        assert path == ordinary
+        assert cache_jar_name == timestamp.name
+        return JavaSource("actual", "org/example/Outer.java", "decompiled")
+    monkeypatch.setattr(server.decompiler, "decompile_class", decompile)
+    payload = json.loads((await server._read_jar_source("org.example", "demo", "1.0-SNAPSHOT", "org.example.Outer", prefer_sources=False))[0].text)
+    assert payload["code"] == "actual"
+    assert set(payload) == {"class_name", "artifact", "source_type", "code"}
+
+
+async def test_exactly_two_tools_and_guide(server):
+    result = await server.server.request_handlers[types.ListToolsRequest](types.ListToolsRequest(method="tools/list"))
+    assert {tool.name for tool in result.root.tools} == {"read_jar_source", "search_group_id"}
+    tools = {tool.name: tool for tool in result.root.tools}
+    assert "start_line" in tools["read_jar_source"].inputSchema["properties"]
+    assert "refresh" not in tools["search_group_id"].inputSchema["properties"]
+    assert "MAVEN_HOME/M2_HOME" in server._get_guide_content()
+
+
+async def test_unknown_tool_and_extra_arguments(server):
+    assert (await call(server, name="unknown")).isError
+    assert (await call(server, name="search_group_id", artifact_id="demo", unexpected=1)).isError
+
+
+async def test_schema_error_has_stable_error_code(server):
+    result = await call(server, name="search_group_id", artifact_id=123)
+    assert result.isError
+    assert json.loads(result.content[0].text)["error"]["code"] == "INVALID_ARGUMENT"
+
+
+async def test_mcp_waits_for_decompilation_result(server, real_jar, monkeypatch):
+    started, finish = asyncio.Event(), asyncio.Event()
+    async def decompile(path, name, cache_jar_name=None):
+        started.set()
+        await finish.wait()
+        return JavaSource("completed source", "org/example/Outer.java", "decompiled")
+    monkeypatch.setattr(server.decompiler, "decompile_class", decompile)
+    task = asyncio.create_task(call(server, group_id="org.example", artifact_id="demo", version="1.0",
+                                    class_name="org.example.Outer", prefer_sources=False))
+    try:
+        await asyncio.wait_for(started.wait(), 3)
+        assert not task.done()
+    finally:
+        finish.set()
+    result = await task
+    assert not result.isError
+    assert json.loads(result.content[0].text)["code"] == "completed source"
+
+
+async def test_snapshot_cache_uses_timestamp_label_and_actual_input_stats(server, reader_config, compiled_classes, jar_factory, monkeypatch):
+    import os
+    import zipfile
+    directory = reader_config.maven_repo / "org/example/demo/1.0-SNAPSHOT"
+    timestamp = jar_factory(directory / "demo-1.0-20260915.120000-9.jar", compiled_classes)
+    ordinary = jar_factory(directory / "demo-1.0-SNAPSHOT.jar", compiled_classes)
+    inputs = []
+    original_run = server.decompiler._run_process
+    async def observe(command, **kwargs):
+        if "-jar" in command:
+            inputs.append(command[3])
+        return await original_run(command, **kwargs)
+    monkeypatch.setattr(server.decompiler, "_run_process", observe)
+    async def read():
+        response = await server._read_jar_source("org.example", "demo", "1.0-SNAPSHOT", "org.example.Outer", prefer_sources=False)
+        return json.loads(response[0].text)
+    assert (await read())["source_type"] == "decompiled"
+    cache_path = directory / "easy-code-reader" / timestamp.name
+    assert cache_path.exists()
+    assert not (cache_path.parent / ordinary.name).exists()
+    assert inputs == [ordinary.resolve()]
+    assert (await read())["source_type"] == "decompiled_cache"
+    assert len(inputs) == 1
+    before = ordinary.stat()
+    os.utime(ordinary, ns=(before.st_atime_ns, before.st_mtime_ns + 2_000_000_000))
+    assert (await read())["source_type"] == "decompiled"
+    with zipfile.ZipFile(cache_path) as archive:
+        metadata = json.loads(archive.read("META-INF/easy-code-reader.json"))
+    assert metadata["source_mtime_ns"] == ordinary.stat().st_mtime_ns
+    assert metadata["source_size"] == ordinary.stat().st_size
+    newer = jar_factory(directory / "demo-1.0-20260915.120000-10.jar", compiled_classes)
+    assert (await read())["source_type"] == "decompiled"
+    assert (cache_path.parent / newer.name).exists()
+    assert inputs == [ordinary.resolve()] * 3
+
+
+async def test_read_normalized_sources_before_timestamp_sources(server, reader_config, compiled_classes, jar_factory):
+    directory = reader_config.maven_repo / "org/example/demo/1.0-SNAPSHOT"
+    jar_factory(directory / "demo-1.0-20260915.120000-2.jar", compiled_classes)
+    jar_factory(directory / "demo-1.0-SNAPSHOT.jar", compiled_classes)
+    jar_factory(directory / "demo-1.0-20260915.120000-2-sources.jar", {"org/example/Outer.java": "timestamp sources"})
+    jar_factory(directory / "demo-1.0-SNAPSHOT-sources.jar", {"org/example/Outer.java": "normalized sources"})
+    response = await server._read_jar_source("org.example", "demo", "1.0-SNAPSHOT", "org.example.Outer")
+    result = json.loads(response[0].text)
+    assert result["code"] == "normalized sources"
+    assert result["source_type"] == "sources.jar"
+    assert not (directory / "easy-code-reader").exists()

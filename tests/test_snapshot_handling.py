@@ -1,147 +1,123 @@
-"""测试 SNAPSHOT 版本处理"""
+"""The same resolver is used for search, binaries and matching sources."""
 
-import tempfile
 import pytest
-from pathlib import Path
-from easy_code_reader.server import EasyCodeReaderServer
-from easy_code_reader.decompiler import JavaDecompiler
+
+from easy_code_reader.errors import ReaderError
+from easy_code_reader.repository import MavenRepository
 
 
-def test_is_timestamped_snapshot():
-    """测试时间戳 SNAPSHOT 版本识别"""
-    decompiler = JavaDecompiler()
-    
-    # 应该识别为时间戳 SNAPSHOT
-    assert decompiler._is_timestamped_snapshot("athena-bugou-trade-export-1.0.11-20251030.085053-1")
-    assert decompiler._is_timestamped_snapshot("my-artifact-2.3.4-20231225.123456-10")
-    
-    # 不应该识别为时间戳 SNAPSHOT
-    assert not decompiler._is_timestamped_snapshot("athena-bugou-trade-export-1.0.11-SNAPSHOT")
-    assert not decompiler._is_timestamped_snapshot("my-artifact-1.0.0")
-    assert not decompiler._is_timestamped_snapshot("my-artifact-1.0.0-RC1")
+@pytest.mark.parametrize("version", ["1-SNAPSHOT", "1.0-SNAPSHOT", "1.0.0-RC1-SNAPSHOT"])
+def test_normalized_binary_with_numeric_timestamp_cache_name(tmp_path, jar_factory, version):
+    repo = MavenRepository(tmp_path)
+    directory = tmp_path / "com/example/demo" / version
+    base = version[:-len("SNAPSHOT")]
+    ordinary = jar_factory(directory / f"demo-{version}.jar")
+    old = jar_factory(directory / f"demo-{base}20260915.120000-9.jar")
+    latest = jar_factory(directory / f"demo-{base}20260915.120000-10.jar")
+    source = jar_factory(directory / f"demo-{base}20260915.120000-10-sources.jar")
+    jar_factory(directory / f"demo-{base}20260915.120000-11-tests.jar")
+    resolved = repo.resolve("com.example", "demo", version)
+    assert resolved.binary == ordinary
+    assert resolved.sources == source
+    assert resolved.binary not in (latest, old)
+    assert resolved.cache_jar_name == latest.name
+    assert resolved.selection == "normalized_snapshot"
+    assert resolved.resolved_version.endswith("-10")
+    assert repo.search("demo")["matches"][0]["matched_versions"] == [version]
 
 
-@pytest.mark.asyncio
-async def test_get_jar_path_snapshot_with_timestamp():
-    """测试获取带时间戳的 SNAPSHOT jar 路径"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        maven_repo = Path(tmpdir)
-        
-        # 创建 SNAPSHOT 版本目录结构
-        jar_dir = maven_repo / "com" / "example" / "test-artifact" / "1.0.11-SNAPSHOT"
-        jar_dir.mkdir(parents=True)
-        
-        # 创建多个 jar 文件（模拟 SNAPSHOT 的不同时间戳版本）
-        older_jar = jar_dir / "test-artifact-1.0.11-20251029.100000-1.jar"
-        newer_jar = jar_dir / "test-artifact-1.0.11-20251030.085053-2.jar"
-        snapshot_jar = jar_dir / "test-artifact-1.0.11-SNAPSHOT.jar"
-        
-        older_jar.touch()
-        newer_jar.touch()
-        snapshot_jar.touch()
-        
-        # 创建服务器实例
-        server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
-        
-        # 应该返回最新的带时间戳的 jar
-        result = server._get_jar_path("com.example", "test-artifact", "1.0.11-SNAPSHOT")
-        
-        assert result is not None
-        assert result == newer_jar
-        assert "20251030.085053-2" in result.name
+def test_does_not_mix_snapshot_builds(tmp_path, jar_factory):
+    directory = tmp_path / "com/example/demo/1.0-SNAPSHOT"
+    jar_factory(directory / "demo-1.0-20260915.120000-2.jar")
+    jar_factory(directory / "demo-1.0-20260915.120000-1-sources.jar")
+    jar_factory(directory / "demo-1.0-SNAPSHOT-sources.jar")
+    resolved = MavenRepository(tmp_path).resolve("com.example", "demo", "1.0-SNAPSHOT")
+    assert resolved.sources is None
+    assert resolved.resolved_version == "1.0-20260915.120000-2"
 
 
-@pytest.mark.asyncio
-async def test_get_jar_path_snapshot_fallback():
-    """测试 SNAPSHOT 版本回退到通用 jar"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        maven_repo = Path(tmpdir)
-        
-        # 创建 SNAPSHOT 版本目录结构
-        jar_dir = maven_repo / "com" / "example" / "test-artifact" / "1.0.11-SNAPSHOT"
-        jar_dir.mkdir(parents=True)
-        
-        # 只创建通用的 SNAPSHOT jar
-        snapshot_jar = jar_dir / "test-artifact-1.0.11-SNAPSHOT.jar"
-        snapshot_jar.touch()
-        
-        # 创建服务器实例
-        server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
-        
-        # 应该返回通用的 SNAPSHOT jar
-        result = server._get_jar_path("com.example", "test-artifact", "1.0.11-SNAPSHOT")
-        
-        assert result is not None
-        assert result == snapshot_jar
+def test_plain_snapshot_fallback(tmp_path, jar_factory):
+    binary = jar_factory(tmp_path / "com/example/demo/1.0-SNAPSHOT/demo-1.0-SNAPSHOT.jar")
+    resolved = MavenRepository(tmp_path).resolve("com.example", "demo", "1.0-SNAPSHOT")
+    assert resolved.binary == binary
+    assert resolved.selection == "snapshot"
 
 
-@pytest.mark.asyncio
-async def test_get_sources_jar_path_snapshot_with_timestamp():
-    """测试获取带时间戳的 SNAPSHOT sources jar 路径 - 简化版本"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        maven_repo = Path(tmpdir)
-        
-        # 创建 SNAPSHOT 版本目录结构
-        jar_dir = maven_repo / "com" / "example" / "test-artifact" / "1.0.11-SNAPSHOT"
-        jar_dir.mkdir(parents=True)
-        
-        # 创建 SNAPSHOT sources jar
-        snapshot_sources = jar_dir / "test-artifact-1.0.11-SNAPSHOT-sources.jar"
-        snapshot_sources.touch()
-        
-        # 创建服务器实例
-        server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
-        
-        # 应该能够获取 sources jar 路径
-        result = server._get_sources_jar_path("com.example", "test-artifact", "1.0.11-SNAPSHOT")
-        
-        assert result is not None
-        assert "sources.jar" in result.name
+def test_source_only_timestamp_is_searchable(tmp_path, jar_factory):
+    path = jar_factory(tmp_path / "com/example/demo/1.0-SNAPSHOT/demo-1.0-20260915.120000-2-sources.jar")
+    repo = MavenRepository(tmp_path)
+    resolved = repo.resolve("com.example", "demo", "1.0-SNAPSHOT")
+    assert resolved.binary is None
+    assert resolved.sources == path
+    assert resolved.selection == "sources_only"
+    assert repo.search("demo")["total_matches"] == 1
 
 
-def test_cleanup_old_snapshot_cache():
-    """测试清理旧的 SNAPSHOT 缓存"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cache_base_dir = Path(tmpdir)
-        
-        # 创建多个 SNAPSHOT 缓存 jar 文件
-        old_cache1 = cache_base_dir / "test-artifact-1.0.11-20251028.120000-1.jar"
-        old_cache2 = cache_base_dir / "test-artifact-1.0.11-20251029.100000-5.jar"
-        current_cache = cache_base_dir / "test-artifact-1.0.11-20251030.085053-10.jar"
-        
-        old_cache1.touch()
-        old_cache2.touch()
-        current_cache.touch()
-        
-        # 执行清理
-        decompiler = JavaDecompiler()
-        decompiler._cleanup_old_snapshot_cache(cache_base_dir, "test-artifact-1.0.11-20251030.085053-10")
-        
-        # 验证旧缓存被删除，当前缓存保留
-        assert not old_cache1.exists()
-        assert not old_cache2.exists()
-        assert current_cache.exists()
+def test_metadata_does_not_override_local_timestamp(tmp_path, jar_factory):
+    binary = jar_factory(tmp_path / "com/example/demo/1.0-SNAPSHOT/demo-1.0-20260915.120000-2.jar")
+    (binary.parent / "maven-metadata-local.xml").write_text('''<metadata><versioning><snapshotVersions>
+    <snapshotVersion><extension>jar</extension><value>1.0-20260914.120000-1</value></snapshotVersion>
+    </snapshotVersions></versioning></metadata>''')
+    resolved = MavenRepository(tmp_path).resolve("com.example", "demo", "1.0-SNAPSHOT")
+    assert resolved.binary == binary
+    assert resolved.warnings
 
 
-@pytest.mark.asyncio
-async def test_get_jar_path_regular_version():
-    """测试获取非 SNAPSHOT 版本 jar 路径"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        maven_repo = Path(tmpdir)
-        
-        # 创建普通版本目录结构
-        jar_dir = maven_repo / "com" / "example" / "test-artifact" / "1.0.0"
-        jar_dir.mkdir(parents=True)
-        
-        # 创建 jar 文件
-        jar_file = jar_dir / "test-artifact-1.0.0.jar"
-        jar_file.touch()
-        
-        # 创建服务器实例
-        server = EasyCodeReaderServer(maven_repo_path=str(maven_repo))
-        
-        # 应该返回普通的 jar
-        result = server._get_jar_path("com.example", "test-artifact", "1.0.0")
-        
-        assert result is not None
-        assert result == jar_file
+def test_classifier_cannot_replace_main_jar(tmp_path, jar_factory):
+    jar_factory(tmp_path / "com/example/demo/1.0/demo-1.0-tests.jar")
+    with pytest.raises(ReaderError, match="未找到 JAR 文件"):
+        MavenRepository(tmp_path).resolve("com.example", "demo", "1.0")
+
+
+@pytest.mark.parametrize("field,value", [("group_id", "/tmp"), ("group_id", "com..example"),
+                                       ("artifact_id", "../demo"), ("artifact_id", "*"),
+                                       ("version", "1.0/else"), ("version", "C:\\temp")])
+def test_coordinates_reject_paths(tmp_path, field, value):
+    args = dict(group_id="com.example", artifact_id="demo", version="1.0")
+    args[field] = value
+    with pytest.raises(ReaderError) as error:
+        MavenRepository(tmp_path).resolve(**args)
+    assert error.value.code == "INVALID_ARGUMENT"
+
+
+def test_symlink_outside_repository(tmp_path, jar_factory):
+    outside = jar_factory(tmp_path / "outside/demo-1.0.jar")
+    directory = tmp_path / "repo/com/example/demo/1.0"
+    directory.mkdir(parents=True)
+    try:
+        (directory / outside.name).symlink_to(outside)
+    except OSError:
+        pytest.skip("Symlinks unavailable")
+    with pytest.raises(ReaderError, match="超出"):
+        MavenRepository(tmp_path / "repo").resolve("com.example", "demo", "1.0")
+
+
+def test_normalized_sources_preferred(tmp_path, jar_factory):
+    directory = tmp_path / "org/example/demo/1.0-SNAPSHOT"
+    jar_factory(directory / "demo-1.0-20260915.120000-2.jar")
+    jar_factory(directory / "demo-1.0-20260915.120000-2-sources.jar")
+    ordinary = jar_factory(directory / "demo-1.0-SNAPSHOT.jar")
+    sources = jar_factory(directory / "demo-1.0-SNAPSHOT-sources.jar")
+    artifact = MavenRepository(tmp_path).resolve("org.example", "demo", "1.0-SNAPSHOT")
+    assert artifact.binary == ordinary
+    assert artifact.sources == sources
+    assert artifact.cache_jar_name == "demo-1.0-20260915.120000-2.jar"
+
+
+def test_timestamp_only_binary_fallback(tmp_path, jar_factory):
+    directory = tmp_path / "org/example/demo/1.0-SNAPSHOT"
+    timestamp = jar_factory(directory / "demo-1.0-20260915.120000-2.jar")
+    sources = jar_factory(directory / "demo-1.0-20260915.120000-2-sources.jar")
+    artifact = MavenRepository(tmp_path).resolve("org.example", "demo", "1.0-SNAPSHOT")
+    assert artifact.binary == timestamp
+    assert artifact.sources == sources
+    assert artifact.cache_jar_name == timestamp.name
+
+
+def test_normalized_source_only_preferred(tmp_path, jar_factory):
+    directory = tmp_path / "org/example/demo/1.0-SNAPSHOT"
+    jar_factory(directory / "demo-1.0-20260915.120000-2-sources.jar")
+    sources = jar_factory(directory / "demo-1.0-SNAPSHOT-sources.jar")
+    artifact = MavenRepository(tmp_path).resolve("org.example", "demo", "1.0-SNAPSHOT")
+    assert artifact.sources == sources
+    assert artifact.binary is None

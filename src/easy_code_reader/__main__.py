@@ -1,32 +1,27 @@
-"""
-Entry point for running the Easy Code Reader MCP server as a module.
-
-支持通过 python -m easy_code_reader 或 uvx easy-code-reader 启动服务器。
-"""
+"""CLI entry point for the stdio MCP server."""
 
 import argparse
 import asyncio
+import logging
+
+from .errors import ReaderError
 from .server import main as server_main
 
 
 def parse_args():
-    """解析命令行参数"""
-    parser = argparse.ArgumentParser(
-        description='Easy Code Reader MCP Server - 读取 Maven JAR 包中的 Java 源代码'
-    )
-    parser.add_argument(
-        '--maven-repo',
-        type=str,
-        help='自定义 Maven 仓库路径（默认: ~/.m2/repository）',
-        default=None
-    )
+    parser = argparse.ArgumentParser(description="Easy Code Reader - 读取 Maven JAR 中的 Java 源码")
+    parser.add_argument("--maven-repo", help="Maven 仓库路径；省略时读取 MAVEN_REPO/settings.xml")
+    parser.add_argument("--decompile-timeout", type=float, default=60.0, help="反编译请求预算（秒，默认 60）")
     return parser.parse_args()
 
 
 def main():
-    """主入口函数，用于 uvx 和直接运行"""
     args = parse_args()
-    asyncio.run(server_main(maven_repo_path=args.maven_repo))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    try:
+        asyncio.run(server_main(args.maven_repo, decompile_timeout=args.decompile_timeout))
+    except ReaderError as exc:
+        raise SystemExit(f"{exc.code}: {exc}. {exc.hint}") from exc
 
 
 if __name__ == "__main__":

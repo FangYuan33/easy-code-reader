@@ -1,0 +1,4 @@
+include README.md requirements.txt AGENTS.md
+recursive-include docs *.md
+recursive-include scripts *.py *.sh
+recursive-include tests *.py

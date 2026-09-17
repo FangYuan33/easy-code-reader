@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Easy JAR Reader - PyPI 发布脚本
+# Easy Code Reader - PyPI 发布脚本
 # 简化发布流程
 
-set -e  # 遇到错误立即退出
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'
@@ -21,7 +21,7 @@ SKIP_CHECKS=false
 # 打印函数
 print_header() {
     echo -e "\n${BLUE}================================================${NC}"
-    echo -e "${BLUE}  Easy JAR Reader - PyPI 发布脚本${NC}"
+    echo -e "${BLUE}  Easy Code Reader - PyPI 发布脚本${NC}"
     echo -e "${BLUE}================================================${NC}\n"
 }
 
@@ -127,7 +127,7 @@ fi
 if [ "$SKIP_CHECKS" = false ]; then
     print_step "运行发布前检查..."
     if [ -f "scripts/pre-publish-check.sh" ]; then
-        if bash scripts/pre-publish-check.sh; then
+        if bash scripts/pre-publish-check.sh --skip-tests; then
             print_success "发布前检查通过"
         else
             print_error "发布前检查失败"
@@ -145,7 +145,7 @@ fi
 if [ "$SKIP_CONFIRM" = false ]; then
     echo -e "\n${YELLOW}准备发布到 $REPOSITORY_URL${NC}"
     echo -e "版本: ${GREEN}${VERSION}${NC}"
-    echo -e "包名: ${GREEN}easy-jar-reader${NC}"
+    echo -e "包名: ${GREEN}easy-code-reader${NC}"
     echo -e "\n${RED}警告: 发布到 PyPI 后无法删除或覆盖已发布的版本！${NC}"
     read -p "确认发布？(yes/no): " CONFIRM
     
@@ -171,10 +171,15 @@ if [ "$SKIP_TESTS" = false ] && [ -d "tests" ]; then
             exit 1
         fi
     else
-        print_warning "pytest 未安装，跳过测试"
+        print_error "pytest 未安装；请安装开发依赖后发布"
+        exit 1
     fi
 else
     print_step "步骤 2/5: 跳过测试"
+fi
+
+if [ "$SKIP_TESTS" = false ]; then
+    python3 scripts/smoke_test.py
 fi
 
 # 步骤 3: 构建包
@@ -215,12 +220,12 @@ if [ "$TEST_PYPI" = true ]; then
         echo -e "\n${GREEN}========================================${NC}"
         echo -e "${GREEN}发布成功！${NC}"
         echo -e "${GREEN}========================================${NC}\n"
-        echo -e "包地址: ${BLUE}${REPOSITORY_URL}/project/easy-jar-reader/${NC}"
+        echo -e "包地址: ${BLUE}${REPOSITORY_URL}/project/easy-code-reader/${NC}"
         echo -e "\n测试安装:"
-        echo -e "  ${BLUE}pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-jar-reader${NC}"
+        echo -e "  ${BLUE}pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-code-reader${NC}"
         echo -e "\n测试运行:"
-        echo -e "  ${BLUE}easy-jar-reader --help${NC}"
-        echo -e "  ${BLUE}uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-jar-reader --help${NC}\n"
+        echo -e "  ${BLUE}easy-code-reader --help${NC}"
+        echo -e "  ${BLUE}uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ easy-code-reader --help${NC}\n"
     else
         print_error "上传失败"
         exit 1
@@ -232,10 +237,10 @@ else
         echo -e "\n${GREEN}========================================${NC}"
         echo -e "${GREEN}发布成功！🎉${NC}"
         echo -e "${GREEN}========================================${NC}\n"
-        echo -e "包地址: ${BLUE}${REPOSITORY_URL}/project/easy-jar-reader/${NC}"
+        echo -e "包地址: ${BLUE}${REPOSITORY_URL}/project/easy-code-reader/${NC}"
         echo -e "\n安装命令:"
-        echo -e "  ${BLUE}pip install easy-jar-reader${NC}"
-        echo -e "  ${BLUE}uvx easy-jar-reader${NC}"
+        echo -e "  ${BLUE}pip install easy-code-reader${NC}"
+        echo -e "  ${BLUE}uvx easy-code-reader${NC}"
         echo -e "\n下一步建议:"
         echo -e "  1. 创建 Git 标签: ${BLUE}git tag -a v${VERSION} -m \"Release v${VERSION}\"${NC}"
         echo -e "  2. 推送标签: ${BLUE}git push origin v${VERSION}${NC}"
