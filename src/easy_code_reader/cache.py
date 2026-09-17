@@ -11,7 +11,8 @@ from .errors import ReaderError
 from .source import JavaSource, read_java, read_java_entry
 
 logger = logging.getLogger(__name__)
-_FORMAT = 2
+# Regenerate older output that may have lost Fernflower generic signatures.
+_FORMAT = 3
 _META = "META-INF/easy-code-reader.json"
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from easy_code_reader.cache import SourceCache
+from easy_code_reader.cache import SourceCache, _FORMAT
 from easy_code_reader.decompiler import JavaDecompiler
 from easy_code_reader.errors import ReaderError
 
@@ -102,7 +102,7 @@ def test_lru_pruning_preserves_current_and_legacy_files(tmp_path, jar_factory):
     sizes = []
     for index, name in enumerate(("old", "recent", "current")):
         path = jar_factory(cache.root / f"{name}.jar", {
-            "META-INF/easy-code-reader.json": '{"format": 2}',
+            "META-INF/easy-code-reader.json": json.dumps({"format": _FORMAT}),
             "Example.java": "public class Example {}",
         })
         os.utime(path, (index + 1, index + 1))
@@ -188,3 +188,19 @@ async def test_input_updated_during_decompilation_is_not_published(reader_config
         await decompiler.decompile_class(real_jar, "org.example.Outer")
     assert error.value.code == "INPUT_CHANGED"
     assert not (real_jar.parent / "easy-code-reader" / real_jar.name).exists()
+
+
+async def test_cache_before_generic_signature_fix_is_regenerated(reader_config, real_jar, jar_factory):
+    stat = real_jar.stat()
+    cache_path = real_jar.parent / "easy-code-reader" / real_jar.name
+    jar_factory(cache_path, {
+        "META-INF/easy-code-reader.json": json.dumps({
+            "format": 2, "source_size": stat.st_size, "source_mtime_ns": stat.st_mtime_ns,
+        }),
+        "org/example/Outer.java": "public class Outer extends java.util.ArrayList {}",
+    })
+    result = await JavaDecompiler(reader_config).decompile_class(real_jar, "org.example.Outer")
+    assert result.source_type == "decompiled"
+    assert "ArrayList<String>" in result.code
+    with zipfile.ZipFile(cache_path) as archive:
+        assert json.loads(archive.read("META-INF/easy-code-reader.json"))["format"] == _FORMAT
